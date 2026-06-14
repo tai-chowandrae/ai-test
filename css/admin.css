@@ -1,0 +1,963 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --BackgroundColor: #0d0e11;
+  --SurfaceColor: #16181d;
+  --SurfaceRaisedColor: #1e2028;
+  --BorderColor: #2a2d38;
+  --AccentColor: #e8b84b;
+  --DangerColor: #e85b4b;
+  --SuccessColor: #4be87a;
+  --TextColor: #f0f0f0;
+  --MutedColor: #6b7280;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--BackgroundColor);
+  color: var(--TextColor);
+  font-family: "Barlow", Arial, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.AdminShell {
+  min-height: 100vh;
+}
+
+.AdminTopbar {
+  align-items: center;
+  background: var(--SurfaceColor);
+  border-bottom: 1px solid var(--BorderColor);
+  display: flex;
+  gap: 12px;
+  height: 52px;
+  padding: 0 20px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.AdminLogo {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.AdminLogo span {
+  color: var(--AccentColor);
+}
+
+.AdminLogo small {
+  color: var(--MutedColor);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  margin-left: 6px;
+  text-transform: uppercase;
+}
+
+.TopbarRight {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.TopbarButton {
+  background: var(--SurfaceRaisedColor);
+  border: 1.5px solid #4b5563;
+  border-radius: 6px;
+  color: var(--TextColor);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 6px 12px;
+  text-transform: uppercase;
+}
+
+.TopbarButton.IsDanger {
+  border-color: var(--DangerColor);
+  color: var(--DangerColor);
+}
+
+.AdminBody {
+  display: flex;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+}
+
+.IconSidebar {
+  align-items: center;
+  background: var(--SurfaceColor);
+  border-right: 1px solid var(--BorderColor);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 8px 0;
+  width: 52px;
+}
+
+.SidebarIconButton {
+  align-items: center;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  color: var(--MutedColor);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  gap: 3px;
+  height: 44px;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  width: 42px;
+}
+
+.SidebarIconButton.IsActive {
+  background: var(--SurfaceRaisedColor);
+  border-color: var(--AccentColor);
+  color: var(--AccentColor);
+}
+
+.IconGlyph {
+  color: var(--TextColor);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.SubSidebar {
+  background: var(--SurfaceColor);
+  border-right: 1px solid var(--BorderColor);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 14px;
+  width: 230px;
+}
+
+.SectionLabel {
+  color: var(--MutedColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+
+.SidebarSearch {
+  background: var(--BackgroundColor);
+  border: 1.5px solid #4b5563;
+  border-radius: 7px;
+  color: var(--TextColor);
+  font-size: 12px;
+  outline: none;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.SidebarSearch:focus {
+  border-color: var(--AccentColor);
+}
+
+.SidebarList {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.SidebarCard {
+  align-items: center;
+  background: var(--SurfaceRaisedColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 8px;
+  color: var(--TextColor);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+[data-filter-item].IsHidden,
+[data-filter-group].IsHidden {
+  display: none;
+}
+
+.SidebarDot {
+  background: var(--AccentColor);
+  border-radius: 50%;
+  flex-shrink: 0;
+  height: 8px;
+  width: 8px;
+}
+
+.SidebarCard strong {
+  display: block;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.SidebarCard small {
+  color: var(--MutedColor);
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 168px;
+}
+
+.SidebarEmpty,
+.InnerEmpty {
+  color: #4b5563;
+  font-size: 12px;
+  padding: 24px 8px;
+  text-align: center;
+}
+
+.MainContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.InfoCard,
+.ContentPanel,
+.AlertCard {
+  background: var(--SurfaceColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 12px;
+}
+
+.AdminViewSection {
+  display: none;
+}
+
+.AdminViewSection.IsActive {
+  display: block;
+}
+
+.SubSidebar.AdminViewSection.IsActive {
+  display: flex;
+}
+
+.InfoCard {
+  padding: 16px 18px;
+}
+
+.InfoHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.InfoHeader h1 {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 1.7rem;
+  font-weight: 900;
+  line-height: 1;
+  margin-top: 6px;
+}
+
+.InfoHeader p:last-child {
+  color: var(--MutedColor);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.LiveBadge {
+  align-items: center;
+  color: var(--MutedColor);
+  display: flex;
+  font-size: 11px;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.LiveBadge span {
+  background: var(--SuccessColor);
+  border-radius: 50%;
+  height: 7px;
+  width: 7px;
+}
+
+.Chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.Chip {
+  background: var(--SurfaceRaisedColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 5px;
+  color: var(--MutedColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.Chip strong {
+  color: var(--TextColor);
+}
+
+.AlertCard {
+  color: var(--DangerColor);
+  padding: 14px 16px;
+}
+
+.AlertCard.IsSuccess {
+  color: var(--SuccessColor);
+}
+
+.InlineHint {
+  color: var(--MutedColor);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.AdminForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr) auto;
+}
+
+.ExportForm {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(160px, 220px) minmax(160px, 220px) auto;
+  margin-bottom: 12px;
+}
+
+.AdminForm label,
+.ExportForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.FormLabel {
+  color: var(--MutedColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.FormInput {
+  background: var(--BackgroundColor);
+  border: 1.5px solid #4b5563;
+  border-radius: 7px;
+  color: var(--TextColor);
+  font-size: 13px;
+  outline: none;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.FormTextarea {
+  background: var(--BackgroundColor);
+  border: 1.5px solid #4b5563;
+  border-radius: 7px;
+  color: var(--TextColor);
+  font-size: 13px;
+  min-height: 78px;
+  outline: none;
+  padding: 9px 11px;
+  resize: vertical;
+  width: 100%;
+}
+
+.FormInput:focus,
+.FormTextarea:focus {
+  border-color: var(--AccentColor);
+}
+
+.AdminFormWide {
+  grid-column: 1 / 3;
+}
+
+.FormHint {
+  color: var(--MutedColor);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.LocationSuggestions {
+  background: var(--SurfaceColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  display: none;
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  position: relative;
+  z-index: 20;
+}
+
+.LocationSuggestions.IsVisible {
+  display: block;
+}
+
+.LocationSuggestion {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--BorderColor);
+  color: var(--TextColor);
+  cursor: pointer;
+  display: block;
+  font-size: 13px;
+  padding: 10px 11px;
+  text-align: left;
+  width: 100%;
+}
+
+.LocationSuggestion:first-child {
+  border-top: 0;
+}
+
+.LocationSuggestion:hover,
+.LocationSuggestion:focus {
+  background: var(--SurfaceRaisedColor);
+  color: var(--AccentColor);
+  outline: none;
+}
+
+.LocationSuggestionMessage {
+  color: var(--MutedColor);
+  font-size: 13px;
+  padding: 10px 11px;
+}
+
+.PrimaryAdminButton {
+  align-self: end;
+  background: var(--AccentColor);
+  border: 0;
+  border-radius: 7px;
+  color: #000;
+  cursor: pointer;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ContentPanel {
+  padding: 16px;
+}
+
+.PanelTitle {
+  align-items: center;
+  color: var(--MutedColor);
+  display: flex;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  gap: 8px;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.PanelTitle::after {
+  background: var(--BorderColor);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.PanelTitle small {
+  color: #4b5563;
+  font-size: 9px;
+}
+
+.RowCard {
+  align-items: center;
+  background: var(--SurfaceColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+  padding: 10px 14px;
+}
+
+.UserAvatar {
+  align-items: center;
+  background: var(--AccentColor);
+  border-radius: 50%;
+  color: #000;
+  display: flex;
+  flex-shrink: 0;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.RowBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.RowBody strong {
+  display: block;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.RowBody small,
+.RowMeta {
+  color: var(--MutedColor);
+  font-size: 11px;
+}
+
+.RowBody small {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.RowMeta {
+  flex-shrink: 0;
+}
+
+.LocationRow {
+  align-items: flex-start;
+}
+
+.TripAdminRow {
+  align-items: flex-start;
+}
+
+.TripAdminActions {
+  align-items: stretch;
+  display: grid;
+  flex-shrink: 0;
+  gap: 8px;
+  grid-template-columns: 72px 62px 84px;
+}
+
+.TripAdminMonthGroup {
+  border: 1px solid var(--BorderColor);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.TripAdminMonthHeader {
+  align-items: center;
+  background: #111318;
+  border-bottom: 1px solid var(--BorderColor);
+  display: flex;
+  justify-content: space-between;
+  padding: 11px 13px;
+}
+
+.TripAdminMonthHeader strong,
+.TripAdminMonthHeader span {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.TripAdminMonthHeader span {
+  color: var(--AccentColor);
+}
+
+.TripAdminDayGroup {
+  border-top: 1px solid var(--BorderColor);
+  overflow: hidden;
+}
+
+.TripAdminMonthHeader + .TripAdminDayGroup {
+  border-top: 0;
+}
+
+.TripAdminDayHeader {
+  align-items: center;
+  background: var(--SurfaceRaisedColor);
+  border-bottom: 1px solid var(--BorderColor);
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 12px;
+}
+
+.TripAdminDayHeader strong,
+.TripAdminDayHeader span {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.TripAdminDayHeader span {
+  color: var(--AccentColor);
+}
+
+.TripAdminDayGroup .TripAdminRow {
+  border: 0;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+.TripAdminDayGroup .TripAdminRow + .TripAdminRow {
+  border-top: 1px solid var(--BorderColor);
+}
+
+.AdminTripEditPanel {
+  background: rgba(30, 32, 40, 0.55);
+  border-top: 1px solid var(--BorderColor);
+  display: none;
+  padding: 12px;
+}
+
+.AdminTripEditPanel.IsOpen {
+  display: block;
+}
+
+.AdminTripEditForm {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(160px, 1fr) minmax(160px, 1fr);
+}
+
+.AdminTripEditForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.AdminCheckboxLabel {
+  align-items: center;
+  background: var(--BackgroundColor);
+  border: 1.5px solid #4b5563;
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.AdminCheckboxLabel input {
+  accent-color: var(--AccentColor);
+}
+
+.AdminCheckboxLabel span {
+  color: var(--TextColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.RowActions {
+  align-items: stretch;
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.RowActions form {
+  display: flex;
+}
+
+.InlineEditForm {
+  display: flex;
+  gap: 6px;
+}
+
+.InlineEditTextarea {
+  background: var(--BackgroundColor);
+  border: 1.5px solid #4b5563;
+  border-radius: 6px;
+  color: var(--TextColor);
+  font-size: 12px;
+  line-height: 1.35;
+  outline: none;
+  padding: 6px 8px;
+  width: 180px;
+}
+
+.InlineEditTextarea {
+  height: 42px;
+  min-height: 42px;
+  resize: vertical;
+  width: 240px;
+}
+
+.InlineEditTextarea.IsNameTextarea {
+  resize: none;
+  width: 180px;
+}
+
+.InlineEditTextarea:focus {
+  border-color: var(--AccentColor);
+}
+
+.SmallActionButton {
+  align-items: center;
+  background: var(--AccentColor);
+  border: 1.5px solid var(--AccentColor);
+  border-radius: 6px;
+  color: #000;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 0.4px;
+  padding: 6px 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.TripAdminActions .SmallActionButton,
+.TripAdminActions .RoleBadge {
+  align-items: center;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
+.DistanceBadge {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.ReturnBadge.IsEmpty {
+  opacity: 0;
+}
+
+.SmallActionButton.IsDanger {
+  background: var(--SurfaceRaisedColor);
+  border-color: var(--DangerColor);
+  color: var(--DangerColor);
+}
+
+.SmallActionButton.IsOutline {
+  background: var(--SurfaceRaisedColor);
+  border-color: rgba(232, 184, 75, 0.55);
+  color: var(--AccentColor);
+}
+
+.ExportTextarea {
+  background: #f3f4f6;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #111827;
+  display: block;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  min-height: 240px;
+  outline: none;
+  padding: 10px;
+  resize: vertical;
+  white-space: pre;
+  width: 100%;
+}
+
+.ExportCopyButton {
+  margin-top: 10px;
+}
+
+.RoleBadge {
+  background: var(--SurfaceRaisedColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 5px;
+  color: var(--MutedColor);
+  flex-shrink: 0;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.RoleBadge.IsAdmin {
+  background: rgba(232, 184, 75, 0.12);
+  border-color: rgba(232, 184, 75, 0.35);
+  color: var(--AccentColor);
+}
+
+.pac-container {
+  background: var(--SurfaceColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  color: var(--TextColor);
+  font-family: "Barlow", Arial, sans-serif;
+  margin-top: 4px;
+  overflow: hidden;
+  z-index: 9999;
+}
+
+.pac-item {
+  border-top: 1px solid var(--BorderColor);
+  color: var(--MutedColor);
+  cursor: pointer;
+  padding: 9px 11px;
+}
+
+.pac-item:first-child {
+  border-top: 0;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background: var(--SurfaceRaisedColor);
+}
+
+.pac-item-query {
+  color: var(--TextColor);
+  font-weight: 600;
+}
+
+.pac-matched {
+  color: var(--AccentColor);
+  font-weight: 700;
+}
+
+@media (max-width: 800px) {
+  .AdminBody {
+    height: auto;
+    min-height: calc(100vh - 52px);
+    overflow: visible;
+  }
+
+  .SubSidebar {
+    display: none;
+  }
+
+  .MainContent {
+    padding: 14px;
+  }
+
+  .InfoHeader {
+    flex-direction: column;
+  }
+
+  .AdminForm {
+    grid-template-columns: 1fr;
+  }
+
+  .AdminTripEditForm {
+    grid-template-columns: 1fr;
+  }
+
+  .ExportForm {
+    grid-template-columns: 1fr;
+  }
+
+  .AdminFormWide {
+    grid-column: auto;
+  }
+
+  .PrimaryAdminButton {
+    align-self: stretch;
+  }
+}
+
+@media (max-width: 560px) {
+  .AdminTopbar {
+    align-items: flex-start;
+    flex-direction: column;
+    height: auto;
+    padding: 12px 14px;
+  }
+
+  .TopbarRight {
+    margin-left: 0;
+  }
+
+  .IconSidebar {
+    display: none;
+  }
+
+  .RowCard {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .RowActions,
+  .InlineEditForm {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .InlineEditInput {
+    width: 100%;
+  }
+
+  .InlineEditTextarea {
+    width: 100%;
+  }
+}

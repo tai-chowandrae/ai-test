@@ -1,0 +1,30 @@
+.RegisterShell {
+  min-height: 744px;
+}
+
+.RegisterContent {
+  justify-content: center;
+  padding-top: 22px;
+}
+
+.RegisterIntro {
+  margin-bottom: 22px;
+}
+
+.FormRow {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.FormHint {
+  color: var(--MutedColor);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 360px) {
+  .FormRow {
+    grid-template-columns: 1fr;
+  }
+}

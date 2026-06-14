@@ -1,0 +1,2 @@
+ALTER TABLE TripRegistrations
+  ADD COLUMN IsRoundTrip TINYINT(1) NOT NULL DEFAULT 0 AFTER EndLocationId;

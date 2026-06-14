@@ -1,0 +1,298 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --PageBackground: #0d0e11;
+  --ShellBackground: #111318;
+  --SurfaceBackground: #171a20;
+  --SurfaceRaised: #20242d;
+  --BorderColor: #2b303b;
+  --AccentColor: #e8b84b;
+  --DangerColor: #e85b4b;
+  --TextColor: #f3f4f6;
+  --MutedColor: #8d95a3;
+  --ShadowColor: rgba(0, 0, 0, 0.55);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(232, 184, 75, 0.12), transparent 34%),
+    var(--PageBackground);
+  color: var(--TextColor);
+  font-family: "Barlow", Arial, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.LoginPage {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.LoginShell {
+  background: var(--ShellBackground);
+  border: 1px solid #343944;
+  border-radius: 24px;
+  box-shadow: 0 36px 80px var(--ShadowColor);
+  display: flex;
+  flex-direction: column;
+  max-height: 844px;
+  min-height: 680px;
+  overflow: hidden;
+  width: min(390px, 100%);
+}
+
+.LoginTopbar {
+  align-items: center;
+  background: var(--SurfaceBackground);
+  border-bottom: 1px solid var(--BorderColor);
+  display: flex;
+  min-height: 56px;
+  padding: 12px 18px;
+}
+
+.LoginLogo {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.LoginLogo span {
+  color: var(--AccentColor);
+}
+
+.LoginContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px 18px;
+}
+
+.LoginIntro {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.LoginKicker,
+.LoginForm label,
+.LoginDivider span {
+  color: var(--MutedColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.LoginIntro h1 {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 2.7rem;
+  font-weight: 900;
+  line-height: 1;
+  margin-top: 8px;
+}
+
+.LoginIntro p:last-child {
+  color: var(--MutedColor);
+  font-size: 0.94rem;
+  line-height: 1.45;
+  margin: 10px auto 0;
+  max-width: 280px;
+}
+
+.LoginForm {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.LoginAlert {
+  background: rgba(232, 91, 75, 0.12);
+  border: 1px solid rgba(232, 91, 75, 0.45);
+  border-radius: 9px;
+  color: var(--DangerColor);
+  display: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 12px 14px;
+}
+
+.LoginAlert.IsVisible {
+  display: block;
+}
+
+.FormGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.FormLabelRow {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.FormLabelRow a {
+  color: var(--AccentColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.FormGroup input {
+  background: var(--SurfaceBackground);
+  border: 1px solid var(--BorderColor);
+  border-radius: 9px;
+  color: var(--TextColor);
+  font: inherit;
+  font-size: 0.98rem;
+  outline: none;
+  padding: 12px 13px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+}
+
+.FormGroup input:focus {
+  border-color: var(--AccentColor);
+  box-shadow: 0 0 0 3px rgba(232, 184, 75, 0.12);
+}
+
+.PrimaryButton,
+.SecondaryButton {
+  border-radius: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 1.12rem;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 1px;
+  padding: 14px;
+  text-transform: uppercase;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  width: 100%;
+}
+
+.PrimaryButton {
+  background: var(--AccentColor);
+  border: 0;
+  color: #050505;
+  margin-top: 4px;
+}
+
+.PrimaryButton:hover,
+.SecondaryButton:hover {
+  opacity: 0.88;
+}
+
+.SecondaryButton {
+  background: transparent;
+  border: 1.5px solid var(--AccentColor);
+  color: var(--AccentColor);
+}
+
+.LoginDivider {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.LoginDivider::before,
+.LoginDivider::after {
+  background: var(--BorderColor);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.ModalOverlay {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  display: none;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 10;
+}
+
+.ModalOverlay.IsVisible {
+  display: flex;
+}
+
+.ModalDialog {
+  background: var(--SurfaceBackground);
+  border: 1px solid var(--BorderColor);
+  border-radius: 16px;
+  box-shadow: 0 28px 70px var(--ShadowColor);
+  max-width: 340px;
+  padding: 22px;
+  text-align: center;
+  width: 100%;
+}
+
+.ModalKicker {
+  color: var(--AccentColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.ModalDialog h2 {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 1.9rem;
+  line-height: 1;
+  margin-top: 8px;
+}
+
+.ModalDialog p:last-of-type {
+  color: var(--MutedColor);
+  font-size: 0.94rem;
+  line-height: 1.45;
+  margin-top: 10px;
+}
+
+.ModalButton {
+  margin-top: 18px;
+}
+
+@media (max-width: 420px) {
+  body {
+    background: var(--PageBackground);
+  }
+
+  .LoginPage {
+    padding: 0;
+  }
+
+  .LoginShell {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
+    width: 100%;
+  }
+}

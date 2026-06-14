@@ -1,0 +1,7 @@
+RewriteEngine On
+DirectoryIndex index.php
+
+# Hide PHP file extensions for SEO-friendly public URLs.
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L]
