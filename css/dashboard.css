@@ -304,6 +304,21 @@ button {
   gap: 10px;
 }
 
+.TripLoadingState {
+  color: var(--MutedColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 0 2px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.TripLoadSentinel {
+  min-height: 1px;
+}
+
 .DashboardPanel {
   padding: 16px;
 }

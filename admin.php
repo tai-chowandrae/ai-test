@@ -514,7 +514,6 @@ $LocationCount = count($Locations);
                   <strong><?= EscapeValue($LocationName) ?></strong>
                   <small><?= EscapeValue((string)$Location['FormattedAddress']) ?></small>
                 </div>
-                <span class="RoleBadge<?= (int)$Location['IsActive'] === 1 ? ' IsAdmin' : '' ?>"><?= (int)$Location['IsActive'] === 1 ? 'Actief' : 'Niet actief' ?></span>
                 <div class="RowActions">
                   <form class="InlineEditForm" action="/api/index.php" method="post">
                     <input type="hidden" name="Action" value="UpdateLocationName">

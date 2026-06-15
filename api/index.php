@@ -3,6 +3,7 @@ session_start();
 
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../config/GoogleMaps.php';
+require_once __DIR__ . '/../includes/TripOverviewRenderer.php';
 
 function RedirectToRegisterWithError(string $Message, array $OldInput = []): void
 {
@@ -821,6 +822,66 @@ function HandleDeleteTripRegistrationRequest(): void
     }
 }
 
+function HandleLoadTripRegistrationsRequest(): void
+{
+    RequireLogin();
+
+    $Offset = max(0, (int)NormalizePostValue('Offset'));
+    $Limit = (int)NormalizePostValue('Limit');
+
+    if ($Limit <= 0) {
+        $Limit = 20;
+    }
+
+    $Limit = min($Limit, 50);
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+
+        $LocationsStatement = $DatabaseConnection->query(
+            'SELECT LocationId, Name, DefaultTripDescription, IsActive
+             FROM Locations
+             ORDER BY Name ASC'
+        );
+        $Locations = $LocationsStatement->fetchAll();
+
+        $TripsStatement = $DatabaseConnection->prepare(
+            'SELECT TripRegistrations.TripRegistrationId, TripRegistrations.TripDate,
+                    TripRegistrations.StartLocationId, TripRegistrations.EndLocationId,
+                    TripRegistrations.IsRoundTrip, TripRegistrations.ApplyCommuteCompensation,
+                    TripRegistrations.TripDescription, TripRegistrations.DistanceKilometers,
+                    StartLocations.Name AS StartLocationName,
+                    EndLocations.Name AS EndLocationName
+             FROM TripRegistrations
+             INNER JOIN Locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
+             INNER JOIN Locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
+             WHERE TripRegistrations.UserId = :UserId
+             ORDER BY TripRegistrations.TripDate DESC, TripRegistrations.TripRegistrationId DESC
+             LIMIT :Limit OFFSET :Offset'
+        );
+        $TripsStatement->bindValue('UserId', (int)$_SESSION['UserId'], PDO::PARAM_INT);
+        $TripsStatement->bindValue('Limit', $Limit + 1, PDO::PARAM_INT);
+        $TripsStatement->bindValue('Offset', $Offset, PDO::PARAM_INT);
+        $TripsStatement->execute();
+        $TripRegistrations = $TripsStatement->fetchAll();
+        $HasMoreTrips = count($TripRegistrations) > $Limit;
+        $TripRegistrations = array_slice($TripRegistrations, 0, $Limit);
+
+        SendJsonResponse([
+            'Ok' => true,
+            'Html' => RenderTripOverviewGroups($TripRegistrations, $Locations),
+            'Count' => count($TripRegistrations),
+            'NextOffset' => $Offset + count($TripRegistrations),
+            'HasMore' => $HasMoreTrips,
+        ]);
+    } catch (PDOException $Exception) {
+        SendJsonResponse([
+            'Ok' => false,
+            'Error' => 'Ritten konden niet worden geladen.',
+        ], 500);
+    }
+}
+
 function HandleUpdateAdminTripRegistrationRequest(): void
 {
     RequireAdmin();
@@ -989,6 +1050,10 @@ if ($Action === 'UpdateTripRegistration') {
 
 if ($Action === 'DeleteTripRegistration') {
     HandleDeleteTripRegistrationRequest();
+}
+
+if ($Action === 'LoadTripRegistrations') {
+    HandleLoadTripRegistrationsRequest();
 }
 
 if ($Action === 'UpdateAdminTripRegistration') {
