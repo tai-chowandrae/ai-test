@@ -1,4 +1,4 @@
-CREATE TABLE Users (
+CREATE TABLE users (
   UserId INT AUTO_INCREMENT PRIMARY KEY,
   FirstName VARCHAR(100) NOT NULL,
   LastName VARCHAR(100) NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE Users (
   UNIQUE KEY UniqueUsersEmailAddress (EmailAddress)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE Locations (
+CREATE TABLE locations (
   LocationId INT AUTO_INCREMENT PRIMARY KEY,
   Name VARCHAR(150) NOT NULL,
   GooglePlaceId VARCHAR(255) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE Locations (
   UNIQUE KEY UniqueLocationsGooglePlaceId (GooglePlaceId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE TripRegistrations (
+CREATE TABLE tripregistrations (
   TripRegistrationId INT AUTO_INCREMENT PRIMARY KEY,
   UserId INT NOT NULL,
   TripDate DATE NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE TripRegistrations (
   DistanceMeters INT NOT NULL,
   DistanceKilometers DECIMAL(10, 2) NOT NULL,
   CreatedAt DATETIME NOT NULL,
-  CONSTRAINT ForeignTripRegistrationsUserId FOREIGN KEY (UserId) REFERENCES Users (UserId),
-  CONSTRAINT ForeignTripRegistrationsStartLocationId FOREIGN KEY (StartLocationId) REFERENCES Locations (LocationId),
-  CONSTRAINT ForeignTripRegistrationsEndLocationId FOREIGN KEY (EndLocationId) REFERENCES Locations (LocationId)
+  CONSTRAINT ForeignTripRegistrationsUserId FOREIGN KEY (UserId) REFERENCES users (UserId),
+  CONSTRAINT ForeignTripRegistrationsStartLocationId FOREIGN KEY (StartLocationId) REFERENCES locations (LocationId),
+  CONSTRAINT ForeignTripRegistrationsEndLocationId FOREIGN KEY (EndLocationId) REFERENCES locations (LocationId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

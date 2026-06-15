@@ -1,5 +1,5 @@
-ALTER TABLE Locations
+ALTER TABLE locations
   ADD COLUMN DefaultTripDescription TEXT NULL AFTER FormattedAddress;
 
-ALTER TABLE TripRegistrations
+ALTER TABLE tripregistrations
   ADD COLUMN TripDescription TEXT NULL AFTER IsRoundTrip;

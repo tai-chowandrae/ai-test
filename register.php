@@ -17,6 +17,7 @@ function EscapeValue(string $Value): string
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Maak een KM2WORK-account aan om toegang te krijgen tot de rittenregistratie en je kilometers bij te houden.">
   <title>Account aanmaken | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

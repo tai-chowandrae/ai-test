@@ -134,21 +134,21 @@ try {
     $DatabaseConnection = GetDatabaseConnection();
     $UsersStatement = $DatabaseConnection->query(
         'SELECT UserId, FirstName, LastName, EmailAddress, IsAdmin, CreatedAt
-         FROM Users
+         FROM users
          ORDER BY CreatedAt DESC, UserId DESC'
     );
     $Users = $UsersStatement->fetchAll();
 
     $LocationsStatement = $DatabaseConnection->query(
         'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive, CreatedAt
-         FROM Locations
+         FROM locations
          ORDER BY Name ASC'
     );
     $Locations = $LocationsStatement->fetchAll();
 
     $TripTotalsStatement = $DatabaseConnection->query(
         'SELECT COUNT(*) AS TripCount, COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
-         FROM TripRegistrations'
+         FROM tripregistrations TripRegistrations'
     );
     $TripTotals = $TripTotalsStatement->fetch();
     $AllTripCount = (int)($TripTotals['TripCount'] ?? 0);
@@ -158,7 +158,7 @@ try {
         'SELECT DATE_FORMAT(TripDate, "%Y-%m") AS TripMonth,
                 COUNT(*) AS TripCount,
                 COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
-         FROM TripRegistrations
+         FROM tripregistrations TripRegistrations
          GROUP BY DATE_FORMAT(TripDate, "%Y-%m")
          ORDER BY TripMonth DESC'
     );
@@ -188,10 +188,10 @@ try {
                 Users.FirstName, Users.LastName, Users.EmailAddress,
                 StartLocations.Name AS StartLocationName,
                 EndLocations.Name AS EndLocationName
-         FROM TripRegistrations
-         INNER JOIN Users ON Users.UserId = TripRegistrations.UserId
-         INNER JOIN Locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
-         INNER JOIN Locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
+         FROM tripregistrations TripRegistrations
+         INNER JOIN users Users ON Users.UserId = TripRegistrations.UserId
+         INNER JOIN locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
+         INNER JOIN locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
          ' . $TripFilterWhereClause . '
          ORDER BY TripRegistrations.TripDate DESC, TripRegistrations.TripRegistrationId DESC'
     );
@@ -230,9 +230,9 @@ try {
                 TripRegistrations.IsRoundTrip, TripRegistrations.TripDescription,
                 StartLocations.FormattedAddress AS StartLocationName,
                 EndLocations.FormattedAddress AS EndLocationName
-         FROM TripRegistrations
-         INNER JOIN Locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
-         INNER JOIN Locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
+         FROM tripregistrations TripRegistrations
+         INNER JOIN locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
+         INNER JOIN locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
          WHERE TripRegistrations.TripDate BETWEEN :ExportStartDate AND :ExportEndDate
          ORDER BY TripRegistrations.TripDate ASC, TripRegistrations.TripRegistrationId ASC'
     );
@@ -268,6 +268,7 @@ $LocationCount = count($Locations);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Beheer in KM2WORK gebruikers, locaties, ritten en exports vanuit de afgeschermde adminomgeving.">
   <title>Admin | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -58,7 +58,7 @@ try {
 
     $LocationsStatement = $DatabaseConnection->query(
         'SELECT LocationId, Name, DefaultTripDescription, IsActive
-         FROM Locations
+         FROM locations
          ORDER BY Name ASC'
     );
     $Locations = $LocationsStatement->fetchAll();
@@ -72,7 +72,7 @@ try {
              COALESCE(SUM(CASE WHEN DATE_FORMAT(TripDate, "%Y-%m") = :PreviousMonth THEN DistanceKilometers ELSE 0 END), 0) AS PreviousMonth,
              COALESCE(SUM(CASE WHEN DATE_FORMAT(TripDate, "%Y-%m") = :CurrentMonth THEN DistanceKilometers ELSE 0 END), 0) AS CurrentMonth,
              COALESCE(SUM(CASE WHEN DATE_FORMAT(TripDate, "%Y") = :CurrentYear THEN DistanceKilometers ELSE 0 END), 0) AS CurrentYear
-         FROM TripRegistrations
+         FROM tripregistrations TripRegistrations
          WHERE UserId = :UserId'
     );
     $TripTotalsStatement->execute([
@@ -96,9 +96,9 @@ try {
                 TripRegistrations.TripDescription, TripRegistrations.DistanceKilometers,
                 StartLocations.Name AS StartLocationName,
                 EndLocations.Name AS EndLocationName
-         FROM TripRegistrations
-         INNER JOIN Locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
-         INNER JOIN Locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
+         FROM tripregistrations TripRegistrations
+         INNER JOIN locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
+         INNER JOIN locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
          WHERE TripRegistrations.UserId = :UserId
          ORDER BY TripRegistrations.TripDate DESC, TripRegistrations.TripRegistrationId DESC
          LIMIT :Limit OFFSET :Offset'
@@ -120,6 +120,7 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Bekijk je opgeslagen ritten, maandtotalen en jaartotalen binnen de KM2WORK rittenregistratie.">
   <title>Ritten overzicht | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

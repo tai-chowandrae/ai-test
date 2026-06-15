@@ -27,7 +27,7 @@ try {
 
     $LocationsStatement = $DatabaseConnection->query(
         'SELECT LocationId, Name, FormattedAddress, DefaultTripDescription
-         FROM Locations
+         FROM locations
          WHERE IsActive = 1
          ORDER BY Name ASC'
     );
@@ -43,6 +43,7 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Registreer een nieuwe rit in KM2WORK met datum, startlocatie, eindlocatie, toelichting en kilometerinstellingen.">
   <title>Dashboard | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

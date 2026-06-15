@@ -117,7 +117,7 @@ function HandleLoginRequest(): void
         $DatabaseConnection = GetDatabaseConnection();
         $UserStatement = $DatabaseConnection->prepare(
             'SELECT UserId, FirstName, LastName, EmailAddress, PasswordHash, IsAdmin
-             FROM Users
+             FROM users
              WHERE EmailAddress = :EmailAddress
              LIMIT 1'
         );
@@ -197,7 +197,7 @@ function HandleRegisterRequest(): void
 
         // Prevent duplicate accounts before inserting the new user.
         $ExistingUserStatement = $DatabaseConnection->prepare(
-            'SELECT UserId FROM Users WHERE EmailAddress = :EmailAddress LIMIT 1'
+            'SELECT UserId FROM users WHERE EmailAddress = :EmailAddress LIMIT 1'
         );
         $ExistingUserStatement->execute(['EmailAddress' => $EmailAddress]);
 
@@ -209,7 +209,7 @@ function HandleRegisterRequest(): void
         $CreatedAt = date('Y-m-d H:i:s');
 
         $CreateUserStatement = $DatabaseConnection->prepare(
-            'INSERT INTO Users (FirstName, LastName, EmailAddress, PasswordHash, CreatedAt)
+            'INSERT INTO users (FirstName, LastName, EmailAddress, PasswordHash, CreatedAt)
              VALUES (:FirstName, :LastName, :EmailAddress, :PasswordHash, :CreatedAt)'
         );
         $CreateUserStatement->execute([
@@ -246,7 +246,7 @@ function HandleCreateLocationRequest(): void
         $CreatedAt = date('Y-m-d H:i:s');
 
         $CreateLocationStatement = $DatabaseConnection->prepare(
-            'INSERT INTO Locations (Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, Latitude, Longitude, CreatedAt)
+            'INSERT INTO locations (Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, Latitude, Longitude, CreatedAt)
              VALUES (:Name, :GooglePlaceId, :FormattedAddress, :DefaultTripDescription, :Latitude, :Longitude, :CreatedAt)'
         );
         $CreateLocationStatement->execute([
@@ -280,7 +280,7 @@ function HandleUpdateLocationNameRequest(): void
     try {
         $DatabaseConnection = GetDatabaseConnection();
         $UpdateLocationStatement = $DatabaseConnection->prepare(
-            'UPDATE Locations
+            'UPDATE locations
              SET Name = :Name,
                  DefaultTripDescription = :DefaultTripDescription
              WHERE LocationId = :LocationId'
@@ -315,12 +315,12 @@ function HandleUpdateLocationVisibilityRequest(): void
         $DatabaseConnection = GetDatabaseConnection();
         $DatabaseConnection->beginTransaction();
 
-        $DatabaseConnection->exec('UPDATE Locations SET IsActive = 0');
+        $DatabaseConnection->exec('UPDATE locations SET IsActive = 0');
 
         if ($ActiveLocationIds) {
             $Placeholders = implode(',', array_fill(0, count($ActiveLocationIds), '?'));
             $ActivateLocationsStatement = $DatabaseConnection->prepare(
-                'UPDATE Locations
+                'UPDATE locations
                  SET IsActive = 1
                  WHERE LocationId IN (' . $Placeholders . ')'
             );
@@ -355,7 +355,7 @@ function HandleDeleteLocationRequest(): void
         // Keep trip history intact by preventing deletion of locations already used in trips.
         $UsageStatement = $DatabaseConnection->prepare(
             'SELECT COUNT(*) AS UsageCount
-             FROM TripRegistrations
+             FROM tripregistrations TripRegistrations
              WHERE StartLocationId = :StartLocationId
                 OR EndLocationId = :EndLocationId'
         );
@@ -370,7 +370,7 @@ function HandleDeleteLocationRequest(): void
         }
 
         $DeleteLocationStatement = $DatabaseConnection->prepare(
-            'DELETE FROM Locations WHERE LocationId = :LocationId'
+            'DELETE FROM locations WHERE LocationId = :LocationId'
         );
         $DeleteLocationStatement->execute(['LocationId' => $LocationId]);
 
@@ -384,7 +384,7 @@ function GetLocationById(PDO $DatabaseConnection, int $LocationId): ?array
 {
     $LocationStatement = $DatabaseConnection->prepare(
         'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive
-         FROM Locations
+         FROM locations
          WHERE LocationId = :LocationId
          LIMIT 1'
     );
@@ -676,7 +676,7 @@ function HandleCreateTripRegistrationRequest(): void
         $CreatedAt = date('Y-m-d H:i:s');
 
         $CreateTripStatement = $DatabaseConnection->prepare(
-            'INSERT INTO TripRegistrations (UserId, TripDate, StartLocationId, EndLocationId, IsRoundTrip, ApplyCommuteCompensation, TripDescription, DistanceMeters, DistanceKilometers, CreatedAt)
+            'INSERT INTO tripregistrations (UserId, TripDate, StartLocationId, EndLocationId, IsRoundTrip, ApplyCommuteCompensation, TripDescription, DistanceMeters, DistanceKilometers, CreatedAt)
              VALUES (:UserId, :TripDate, :StartLocationId, :EndLocationId, :IsRoundTrip, :ApplyCommuteCompensation, :TripDescription, :DistanceMeters, :DistanceKilometers, :CreatedAt)'
         );
         $CreateTripStatement->execute([
@@ -728,7 +728,7 @@ function HandleUpdateTripRegistrationRequest(): void
 
         $ExistingTripStatement = $DatabaseConnection->prepare(
             'SELECT TripRegistrationId, StartLocationId, EndLocationId
-             FROM TripRegistrations
+             FROM tripregistrations TripRegistrations
              WHERE TripRegistrationId = :TripRegistrationId
                AND UserId = :UserId
              LIMIT 1'
@@ -759,7 +759,7 @@ function HandleUpdateTripRegistrationRequest(): void
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
 
         $UpdateTripStatement = $DatabaseConnection->prepare(
-            'UPDATE TripRegistrations
+            'UPDATE tripregistrations
              SET TripDate = :TripDate,
                  StartLocationId = :StartLocationId,
                  EndLocationId = :EndLocationId,
@@ -803,7 +803,7 @@ function HandleDeleteTripRegistrationRequest(): void
     try {
         $DatabaseConnection = GetDatabaseConnection();
         $DeleteTripStatement = $DatabaseConnection->prepare(
-            'DELETE FROM TripRegistrations
+            'DELETE FROM tripregistrations
              WHERE TripRegistrationId = :TripRegistrationId
                AND UserId = :UserId'
         );
@@ -840,7 +840,7 @@ function HandleLoadTripRegistrationsRequest(): void
 
         $LocationsStatement = $DatabaseConnection->query(
             'SELECT LocationId, Name, DefaultTripDescription, IsActive
-             FROM Locations
+             FROM locations
              ORDER BY Name ASC'
         );
         $Locations = $LocationsStatement->fetchAll();
@@ -852,9 +852,9 @@ function HandleLoadTripRegistrationsRequest(): void
                     TripRegistrations.TripDescription, TripRegistrations.DistanceKilometers,
                     StartLocations.Name AS StartLocationName,
                     EndLocations.Name AS EndLocationName
-             FROM TripRegistrations
-             INNER JOIN Locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
-             INNER JOIN Locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
+             FROM tripregistrations TripRegistrations
+             INNER JOIN locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
+             INNER JOIN locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
              WHERE TripRegistrations.UserId = :UserId
              ORDER BY TripRegistrations.TripDate DESC, TripRegistrations.TripRegistrationId DESC
              LIMIT :Limit OFFSET :Offset'
@@ -912,7 +912,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
 
         $ExistingTripStatement = $DatabaseConnection->prepare(
             'SELECT TripRegistrationId, StartLocationId, EndLocationId
-             FROM TripRegistrations
+             FROM tripregistrations TripRegistrations
              WHERE TripRegistrationId = :TripRegistrationId
              LIMIT 1'
         );
@@ -939,7 +939,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
 
         $UpdateTripStatement = $DatabaseConnection->prepare(
-            'UPDATE TripRegistrations
+            'UPDATE tripregistrations
              SET TripDate = :TripDate,
                  StartLocationId = :StartLocationId,
                  EndLocationId = :EndLocationId,
@@ -981,7 +981,7 @@ function HandleDeleteAdminTripRegistrationRequest(): void
     try {
         $DatabaseConnection = GetDatabaseConnection();
         $DeleteTripStatement = $DatabaseConnection->prepare(
-            'DELETE FROM TripRegistrations
+            'DELETE FROM tripregistrations
              WHERE TripRegistrationId = :TripRegistrationId'
         );
         $DeleteTripStatement->execute(['TripRegistrationId' => $TripRegistrationId]);
