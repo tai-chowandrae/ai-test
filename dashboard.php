@@ -28,6 +28,7 @@ try {
     $LocationsStatement = $DatabaseConnection->query(
         'SELECT LocationId, Name, FormattedAddress, DefaultTripDescription
          FROM Locations
+         WHERE IsActive = 1
          ORDER BY Name ASC'
     );
     $Locations = $LocationsStatement->fetchAll();
@@ -42,7 +43,7 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Dashboard | Skills2Work</title>
+  <title>Dashboard | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -52,7 +53,7 @@ try {
   <main class="DashboardPage" aria-label="Dashboard">
     <section class="DashboardShell">
       <header class="DashboardTopbar">
-        <a class="DashboardLogo" href="/dashboard">SKILLS<span>2</span>WORK</a>
+        <a class="DashboardLogo" href="/dashboard">KM<span>2</span>WORK</a>
         <button class="IconButton" id="DashboardMenuButton" type="button" aria-label="Menu openen" aria-expanded="false">
           <span></span>
           <span></span>
@@ -128,6 +129,11 @@ try {
             <label class="CheckboxLabel">
               <input name="IsRoundTrip" type="checkbox" value="1">
               <span>Heen en weer</span>
+            </label>
+
+            <label class="CheckboxLabel">
+              <input name="ApplyCommuteCompensation" type="checkbox" value="1">
+              <span>Woon-werkcompensatie (-72 km)</span>
             </label>
 
             <button class="PrimaryDashboardButton" type="submit">Rit opslaan</button>

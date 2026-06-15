@@ -94,11 +94,38 @@ $Locations = [];
 $TripRegistrations = [];
 $GroupedTripRegistrations = [];
 $GroupedTripRegistrationsByMonth = [];
+$TripLocations = [];
 $ExportRows = [];
+$AllTripCount = 0;
+$AllTripKilometers = 0.0;
+$MonthlyTripTotals = [];
 $AdminError = '';
 $AdminMessage = $_SESSION['AdminMessage'] ?? null;
+$AdminMessageView = is_array($AdminMessage) ? (string)($AdminMessage['View'] ?? 'Welcome') : 'Welcome';
 $ExportStartDate = (string)($_GET['ExportStartDate'] ?? date('Y-m-01'));
 $ExportEndDate = (string)($_GET['ExportEndDate'] ?? date('Y-m-d'));
+$HasSubmittedTripFilter = array_key_exists('TripStartDate', $_GET) || array_key_exists('TripEndDate', $_GET);
+$ShowAllTrips = (string)($_GET['ShowAllTrips'] ?? '') === '1';
+
+if ($ShowAllTrips) {
+    $_SESSION['AdminTripFilter'] = [
+        'StartDate' => '',
+        'EndDate' => '',
+    ];
+} elseif ($HasSubmittedTripFilter) {
+    $_SESSION['AdminTripFilter'] = [
+        'StartDate' => (string)($_GET['TripStartDate'] ?? ''),
+        'EndDate' => (string)($_GET['TripEndDate'] ?? ''),
+    ];
+} elseif (empty($_SESSION['AdminTripFilter']) || !is_array($_SESSION['AdminTripFilter'])) {
+    $_SESSION['AdminTripFilter'] = [
+        'StartDate' => date('Y-m-d', strtotime('-3 months')),
+        'EndDate' => date('Y-m-d'),
+    ];
+}
+
+$TripFilterStartDate = (string)($_SESSION['AdminTripFilter']['StartDate'] ?? '');
+$TripFilterEndDate = (string)($_SESSION['AdminTripFilter']['EndDate'] ?? '');
 $ExportContent = "DATUM\tVAN\tNAAR\tENKELE AFSTAND\tREISTIJD\tAFSTAND\tRETOUR\tToelichting";
 
 unset($_SESSION['AdminMessage']);
@@ -113,16 +140,50 @@ try {
     $Users = $UsersStatement->fetchAll();
 
     $LocationsStatement = $DatabaseConnection->query(
-        'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, CreatedAt
+        'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive, CreatedAt
          FROM Locations
          ORDER BY Name ASC'
     );
     $Locations = $LocationsStatement->fetchAll();
 
-    $TripsStatement = $DatabaseConnection->query(
+    $TripTotalsStatement = $DatabaseConnection->query(
+        'SELECT COUNT(*) AS TripCount, COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
+         FROM TripRegistrations'
+    );
+    $TripTotals = $TripTotalsStatement->fetch();
+    $AllTripCount = (int)($TripTotals['TripCount'] ?? 0);
+    $AllTripKilometers = (float)($TripTotals['TotalKilometers'] ?? 0);
+
+    $MonthlyTripTotalsStatement = $DatabaseConnection->query(
+        'SELECT DATE_FORMAT(TripDate, "%Y-%m") AS TripMonth,
+                COUNT(*) AS TripCount,
+                COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
+         FROM TripRegistrations
+         GROUP BY DATE_FORMAT(TripDate, "%Y-%m")
+         ORDER BY TripMonth DESC'
+    );
+    $MonthlyTripTotals = $MonthlyTripTotalsStatement->fetchAll();
+
+    $TripFilterConditions = [];
+    $TripFilterParameters = [];
+
+    if ($TripFilterStartDate !== '') {
+        $TripFilterConditions[] = 'TripRegistrations.TripDate >= :TripFilterStartDate';
+        $TripFilterParameters['TripFilterStartDate'] = $TripFilterStartDate;
+    }
+
+    if ($TripFilterEndDate !== '') {
+        $TripFilterConditions[] = 'TripRegistrations.TripDate <= :TripFilterEndDate';
+        $TripFilterParameters['TripFilterEndDate'] = $TripFilterEndDate;
+    }
+
+    $TripFilterWhereClause = $TripFilterConditions ? ' WHERE ' . implode(' AND ', $TripFilterConditions) : '';
+
+    $TripsStatement = $DatabaseConnection->prepare(
         'SELECT TripRegistrations.TripRegistrationId, TripRegistrations.TripDate,
                 TripRegistrations.StartLocationId, TripRegistrations.EndLocationId,
                 TripRegistrations.DistanceKilometers, TripRegistrations.IsRoundTrip,
+                TripRegistrations.ApplyCommuteCompensation,
                 TripRegistrations.TripDescription, TripRegistrations.CreatedAt,
                 Users.FirstName, Users.LastName, Users.EmailAddress,
                 StartLocations.Name AS StartLocationName,
@@ -131,8 +192,10 @@ try {
          INNER JOIN Users ON Users.UserId = TripRegistrations.UserId
          INNER JOIN Locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
          INNER JOIN Locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
+         ' . $TripFilterWhereClause . '
          ORDER BY TripRegistrations.TripDate DESC, TripRegistrations.TripRegistrationId DESC'
     );
+    $TripsStatement->execute($TripFilterParameters);
     $TripRegistrations = $TripsStatement->fetchAll();
 
     foreach ($TripRegistrations as $TripRegistration) {
@@ -140,7 +203,27 @@ try {
         $TripMonth = substr($TripDate, 0, 7);
         $GroupedTripRegistrations[$TripDate][] = $TripRegistration;
         $GroupedTripRegistrationsByMonth[$TripMonth][$TripDate][] = $TripRegistration;
+
+        $TripLocationIds = [
+            (int)$TripRegistration['StartLocationId'] => (string)$TripRegistration['StartLocationName'],
+            (int)$TripRegistration['EndLocationId'] => (string)$TripRegistration['EndLocationName'],
+        ];
+
+        foreach ($TripLocationIds as $LocationId => $LocationName) {
+            if (!isset($TripLocations[$LocationId])) {
+                $TripLocations[$LocationId] = [
+                    'Name' => $LocationName,
+                    'TripCount' => 0,
+                ];
+            }
+
+            $TripLocations[$LocationId]['TripCount']++;
+        }
     }
+
+    uasort($TripLocations, function (array $FirstLocation, array $SecondLocation): int {
+        return strcasecmp((string)$FirstLocation['Name'], (string)$SecondLocation['Name']);
+    });
 
     $ExportStatement = $DatabaseConnection->prepare(
         'SELECT TripRegistrations.TripDate, TripRegistrations.DistanceKilometers,
@@ -175,10 +258,9 @@ try {
 }
 
 $FirstName = (string)($_SESSION['FirstName'] ?? '');
+$FullName = trim($FirstName . ' ' . (string)($_SESSION['LastName'] ?? ''));
 $UserCount = count($Users);
 $LocationCount = count($Locations);
-$TripCount = count($TripRegistrations);
-$LatestUser = $Users[0] ?? null;
 ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -186,7 +268,7 @@ $LatestUser = $Users[0] ?? null;
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Admin | Skills2Work</title>
+  <title>Admin | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -195,7 +277,7 @@ $LatestUser = $Users[0] ?? null;
 <body>
   <div class="AdminShell">
     <header class="AdminTopbar">
-      <a class="AdminLogo" href="/admin">SKILLS<span>2</span>WORK <small>Beheer</small></a>
+      <a class="AdminLogo" href="/admin">KM<span>2</span>WORK <small>Beheer</small></a>
       <div class="TopbarRight">
         <a class="TopbarButton" href="/dashboard">Dashboard</a>
         <form action="/api/index.php" method="post">
@@ -279,18 +361,17 @@ $LatestUser = $Users[0] ?? null;
         <input class="SidebarSearch" id="TripSearch" type="search" placeholder="Rit zoeken..." autocomplete="off" data-filter-input="Trips">
 
         <div class="SidebarList" id="SidebarTripList">
-          <?php if ($TripRegistrations): ?>
-            <?php foreach ($TripRegistrations as $TripRegistration): ?>
+          <?php if ($TripLocations): ?>
+            <?php foreach ($TripLocations as $TripLocation): ?>
               <?php
-                $FullName = trim((string)$TripRegistration['FirstName'] . ' ' . (string)$TripRegistration['LastName']);
-                $RouteName = (string)$TripRegistration['StartLocationName'] . ' naar ' . (string)$TripRegistration['EndLocationName'];
-                $SearchValue = strtolower($FullName . ' ' . (string)$TripRegistration['EmailAddress'] . ' ' . $RouteName . ' ' . (string)$TripRegistration['TripDescription']);
+                $TripLocationName = (string)$TripLocation['Name'];
+                $SearchValue = strtolower($TripLocationName);
               ?>
-              <button class="SidebarCard" type="button" data-filter-item="Trips" data-search-value="<?= EscapeValue($SearchValue) ?>">
+              <button class="SidebarCard" type="button" data-filter-item="Trips" data-search-value="<?= EscapeValue($SearchValue) ?>" data-filter-apply="Trips" data-filter-value="<?= EscapeValue($TripLocationName) ?>">
                 <span class="SidebarDot"></span>
                 <span>
-                  <strong><?= EscapeValue($RouteName) ?></strong>
-                  <small><?= EscapeValue($FullName) ?> - <?= EscapeValue(FormatDateValue((string)$TripRegistration['TripDate'])) ?></small>
+                  <strong><?= EscapeValue($TripLocationName) ?></strong>
+                  <small><?= (int)$TripLocation['TripCount'] ?> ritten</small>
                 </span>
               </button>
             <?php endforeach; ?>
@@ -305,7 +386,7 @@ $LatestUser = $Users[0] ?? null;
           <div class="InfoHeader">
             <div>
               <p class="SectionLabel">Beheersomgeving</p>
-              <h1 id="AdminTitle">Welkom<?= $FirstName !== '' ? ', ' . EscapeValue($FirstName) : '' ?></h1>
+              <h1 id="AdminTitle">Welkom<?= $FullName !== '' ? ', ' . EscapeValue($FullName) : '' ?></h1>
               <p>Kies links wat je wilt beheren: gebruikers, locaties of export.</p>
             </div>
             <div class="LiveBadge"><span></span>Live</div>
@@ -314,13 +395,37 @@ $LatestUser = $Users[0] ?? null;
           <div class="Chips">
             <span class="Chip"><strong><?= $UserCount ?></strong> accounts</span>
             <span class="Chip"><strong><?= $LocationCount ?></strong> locaties</span>
-            <span class="Chip"><strong><?= $TripCount ?></strong> ritten</span>
-            <span class="Chip">Nieuwste: <strong><?= $LatestUser ? EscapeValue((string)$LatestUser['FirstName']) : '-' ?></strong></span>
+            <span class="Chip"><strong><?= $AllTripCount ?></strong> ritten</span>
+            <span class="Chip"><strong><?= EscapeValue(FormatExportDistance($AllTripKilometers)) ?></strong> km totaal</span>
           </div>
+
+          <?php if ($MonthlyTripTotals): ?>
+            <section class="MonthlyTotals" aria-label="Totalen per kalendermaand">
+              <div class="MonthlyTotalsHeader">
+                <span>Kalendermaanden</span>
+                <small><?= count($MonthlyTripTotals) ?> maanden</small>
+              </div>
+              <div class="MonthlyTotalsGrid">
+                <?php foreach ($MonthlyTripTotals as $MonthlyTripTotal): ?>
+                  <?php
+                    $MonthlyTripDate = DateTime::createFromFormat('Y-m-d', (string)$MonthlyTripTotal['TripMonth'] . '-01');
+                    $MonthlyTripStartDate = $MonthlyTripDate ? $MonthlyTripDate->format('Y-m-01') : (string)$MonthlyTripTotal['TripMonth'] . '-01';
+                    $MonthlyTripEndDate = $MonthlyTripDate ? $MonthlyTripDate->format('Y-m-t') : $MonthlyTripStartDate;
+                    $MonthlyTripFilterUrl = '/admin?TripStartDate=' . rawurlencode($MonthlyTripStartDate) . '&TripEndDate=' . rawurlencode($MonthlyTripEndDate) . '#AdminTrips';
+                  ?>
+                  <article class="MonthlyTotalItem">
+                    <a href="<?= EscapeValue($MonthlyTripFilterUrl) ?>"><?= EscapeValue(FormatMonthValue((string)$MonthlyTripTotal['TripMonth'])) ?></a>
+                    <span><?= (int)$MonthlyTripTotal['TripCount'] ?> ritten</span>
+                    <span><?= EscapeValue(FormatExportDistance((float)$MonthlyTripTotal['TotalKilometers'])) ?> km</span>
+                  </article>
+                <?php endforeach; ?>
+              </div>
+            </section>
+          <?php endif; ?>
         </section>
 
         <?php if (is_array($AdminMessage)): ?>
-          <section class="AlertCard <?= $AdminMessage['Type'] === 'Success' ? 'IsSuccess' : '' ?>" role="alert">
+          <section class="AlertCard AdminViewSection <?= $AdminMessage['Type'] === 'Success' ? 'IsSuccess' : '' ?>" data-admin-section="<?= EscapeValue($AdminMessageView) ?>" data-auto-dismiss role="alert">
             <?= EscapeValue((string)$AdminMessage['Message']) ?>
           </section>
         <?php endif; ?>
@@ -397,28 +502,35 @@ $LatestUser = $Users[0] ?? null;
 
           <?php if ($Locations): ?>
             <?php foreach ($Locations as $Location): ?>
+              <?php if ((int)$Location['IsActive'] !== 1) { continue; } ?>
                 <?php
-                  $SearchValue = strtolower((string)$Location['Name'] . ' ' . (string)$Location['FormattedAddress'] . ' ' . (string)($Location['DefaultTripDescription'] ?? ''));
+                  $LocationName = (string)$Location['Name'];
+                  $LocationInitial = strtoupper(substr(trim($LocationName), 0, 1));
+                  $SearchValue = strtolower($LocationName . ' ' . (string)$Location['FormattedAddress'] . ' ' . (string)($Location['DefaultTripDescription'] ?? ''));
                 ?>
                 <article class="RowCard LocationRow" data-filter-item="Locations" data-search-value="<?= EscapeValue($SearchValue) ?>">
-                <span class="UserAvatar">L</span>
+                <span class="UserAvatar<?= (int)$Location['IsActive'] === 1 ? '' : ' IsInactive' ?>"><?= EscapeValue($LocationInitial !== '' ? $LocationInitial : 'L') ?></span>
                 <div class="RowBody">
-                  <strong><?= EscapeValue((string)$Location['Name']) ?></strong>
+                  <strong><?= EscapeValue($LocationName) ?></strong>
                   <small><?= EscapeValue((string)$Location['FormattedAddress']) ?></small>
                 </div>
-                <span class="RowMeta">#<?= (int)$Location['LocationId'] ?></span>
+                <span class="RoleBadge<?= (int)$Location['IsActive'] === 1 ? ' IsAdmin' : '' ?>"><?= (int)$Location['IsActive'] === 1 ? 'Actief' : 'Niet actief' ?></span>
                 <div class="RowActions">
                   <form class="InlineEditForm" action="/api/index.php" method="post">
                     <input type="hidden" name="Action" value="UpdateLocationName">
                     <input type="hidden" name="LocationId" value="<?= (int)$Location['LocationId'] ?>">
                     <textarea class="InlineEditTextarea IsNameTextarea" name="Name" rows="2" required><?= EscapeValue((string)$Location['Name']) ?></textarea>
                     <textarea class="InlineEditTextarea" name="DefaultTripDescription" rows="2" placeholder="Standaard toelichting"><?= EscapeValue((string)($Location['DefaultTripDescription'] ?? '')) ?></textarea>
-                    <button class="SmallActionButton" type="submit">Opslaan</button>
+                    <button class="SmallActionButton IsOutline" type="submit">Opslaan</button>
                   </form>
-                  <form action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze locatie wilt verwijderen?">
+                  <form class="LocationDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze locatie wilt verwijderen?">
                     <input type="hidden" name="Action" value="DeleteLocation">
                     <input type="hidden" name="LocationId" value="<?= (int)$Location['LocationId'] ?>">
-                    <button class="SmallActionButton IsDanger" type="submit">Verwijderen</button>
+                    <button class="SmallActionButton IsOutline IconActionButton" type="submit" aria-label="Locatie verwijderen" title="Locatie verwijderen">
+                      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                        <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"></path>
+                      </svg>
+                    </button>
                   </form>
                 </div>
               </article>
@@ -426,6 +538,70 @@ $LatestUser = $Users[0] ?? null;
           <?php else: ?>
             <div class="InnerEmpty">Nog geen locaties opgeslagen.</div>
           <?php endif; ?>
+        </section>
+
+        <section class="ContentPanel AdminViewSection" data-admin-section="Locations">
+          <div class="PanelTitle">
+            <span>Locaties kiezen</span>
+            <small>Actief / niet actief</small>
+          </div>
+
+          <form class="LocationVisibilityForm" action="/api/index.php" method="post">
+            <input type="hidden" name="Action" value="UpdateLocationVisibility">
+
+            <div class="LocationDualList">
+              <section class="LocationDualColumn" aria-label="Actieve locaties">
+                <header>
+                  <strong>Actief</strong>
+                  <small>Beschikbaar in ritformulieren</small>
+                </header>
+                <div class="LocationDualListBox" data-location-list="active">
+                  <?php foreach ($Locations as $Location): ?>
+                    <?php if ((int)$Location['IsActive'] === 1): ?>
+                      <?php
+                        $LocationName = (string)$Location['Name'];
+                        $SearchValue = strtolower($LocationName . ' ' . (string)$Location['FormattedAddress'] . ' ' . (string)($Location['DefaultTripDescription'] ?? ''));
+                      ?>
+                      <button class="LocationDualItem" type="button" data-location-option data-filter-item="Locations" data-search-value="<?= EscapeValue($SearchValue) ?>">
+                        <input type="hidden" name="ActiveLocationIds[]" value="<?= (int)$Location['LocationId'] ?>">
+                        <span><?= EscapeValue($LocationName) ?></span>
+                        <small><?= EscapeValue((string)$Location['FormattedAddress']) ?></small>
+                      </button>
+                    <?php endif; ?>
+                  <?php endforeach; ?>
+                </div>
+              </section>
+
+              <div class="LocationDualActions" aria-label="Locaties verplaatsen">
+                <button class="SmallActionButton IsOutline" type="button" data-location-move="inactive">Naar rechts</button>
+                <button class="SmallActionButton IsOutline" type="button" data-location-move="active">Naar links</button>
+              </div>
+
+              <section class="LocationDualColumn" aria-label="Niet actieve locaties">
+                <header>
+                  <strong>Niet actief</strong>
+                  <small>Verborgen in ritformulieren</small>
+                </header>
+                <div class="LocationDualListBox" data-location-list="inactive">
+                  <?php foreach ($Locations as $Location): ?>
+                    <?php if ((int)$Location['IsActive'] !== 1): ?>
+                      <?php
+                        $LocationName = (string)$Location['Name'];
+                        $SearchValue = strtolower($LocationName . ' ' . (string)$Location['FormattedAddress'] . ' ' . (string)($Location['DefaultTripDescription'] ?? ''));
+                      ?>
+                      <button class="LocationDualItem" type="button" data-location-option data-filter-item="Locations" data-search-value="<?= EscapeValue($SearchValue) ?>">
+                        <input type="hidden" name="ActiveLocationIds[]" value="<?= (int)$Location['LocationId'] ?>" disabled>
+                        <span><?= EscapeValue($LocationName) ?></span>
+                        <small><?= EscapeValue((string)$Location['FormattedAddress']) ?></small>
+                      </button>
+                    <?php endif; ?>
+                  <?php endforeach; ?>
+                </div>
+              </section>
+            </div>
+
+            <button class="SmallActionButton IsOutline LocationVisibilitySaveButton" type="submit">Zichtbaarheid opslaan</button>
+          </form>
         </section>
 
         <section class="ContentPanel AdminViewSection" data-admin-section="Users">
@@ -462,8 +638,23 @@ $LatestUser = $Users[0] ?? null;
         <section class="ContentPanel AdminViewSection" data-admin-section="Trips">
           <div class="PanelTitle">
             <span>Rittenlijst</span>
-            <small><?= $TripCount ?> totaal</small>
+            <small><?= count($TripRegistrations) ?> getoond</small>
           </div>
+
+          <form class="PeriodFilterForm" method="get" action="/admin#AdminTrips">
+            <label>
+              <span class="FormLabel">Van datum</span>
+              <input class="FormInput" name="TripStartDate" type="date" value="<?= EscapeValue($TripFilterStartDate) ?>">
+            </label>
+            <label>
+              <span class="FormLabel">Tot datum</span>
+              <input class="FormInput" name="TripEndDate" type="date" value="<?= EscapeValue($TripFilterEndDate) ?>">
+            </label>
+            <button class="PrimaryAdminButton" type="submit">Filter toepassen</button>
+            <?php if ($TripFilterStartDate !== '' || $TripFilterEndDate !== ''): ?>
+              <a class="SmallActionButton IsOutline PeriodFilterReset" href="/admin?ShowAllTrips=1#AdminTrips">Reset</a>
+            <?php endif; ?>
+          </form>
 
           <?php if ($GroupedTripRegistrationsByMonth): ?>
             <?php foreach ($GroupedTripRegistrationsByMonth as $TripMonth => $TripsForMonth): ?>
@@ -498,12 +689,12 @@ $LatestUser = $Users[0] ?? null;
                       <?php
                         $FullName = trim((string)$TripRegistration['FirstName'] . ' ' . (string)$TripRegistration['LastName']);
                         $RouteName = (string)$TripRegistration['StartLocationName'] . ' naar ' . (string)$TripRegistration['EndLocationName'];
-                        $SearchValue = strtolower($FullName . ' ' . (string)$TripRegistration['EmailAddress'] . ' ' . $RouteName . ' ' . (string)$TripRegistration['TripDescription'] . ' ' . FormatDateValue((string)$TripRegistration['TripDate']) . ' ' . $TripMonth);
+                        $SearchValue = strtolower($FullName . ' ' . (string)$TripRegistration['EmailAddress'] . ' ' . $RouteName . ' ' . (string)$TripRegistration['TripDescription'] . ' ' . FormatDateValue((string)$TripRegistration['TripDate']) . ' ' . $TripMonth . ((int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' woon-werkcompensatie' : ''));
                       ?>
                       <article class="RowCard TripAdminRow" data-filter-item="Trips" data-search-value="<?= EscapeValue($SearchValue) ?>">
                         <span class="UserAvatar"><?= (int)$TripIndex + 1 ?></span>
                         <div class="RowBody">
-                          <strong><?= EscapeValue($RouteName) ?><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? ' v.v.' : '' ?></strong>
+                          <strong><?= EscapeValue($RouteName) ?><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? ' v.v.' : '' ?><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' - woon-werk' : '' ?></strong>
                           <small><?= EscapeValue($FullName) ?> - <?= EscapeValue((string)$TripRegistration['EmailAddress']) ?></small>
                           <?php if (!empty($TripRegistration['TripDescription'])): ?>
                             <small><?= EscapeValue((string)$TripRegistration['TripDescription']) ?></small>
@@ -512,7 +703,17 @@ $LatestUser = $Users[0] ?? null;
                         <div class="TripAdminActions">
                           <span class="RoleBadge DistanceBadge"><?= EscapeValue(FormatExportDistance((float)$TripRegistration['DistanceKilometers'])) ?> km</span>
                           <span class="RoleBadge ReturnBadge<?= (int)$TripRegistration['IsRoundTrip'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? 'Retour' : '' ?></span>
+                          <span class="RoleBadge CommuteBadge<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '-72 km' : '' ?></span>
                           <button class="SmallActionButton IsOutline AdminTripEditToggle" type="button" aria-expanded="false">Bewerken</button>
+                          <form class="AdminTripDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze rit wilt verwijderen?">
+                            <input type="hidden" name="Action" value="DeleteAdminTripRegistration">
+                            <input type="hidden" name="TripRegistrationId" value="<?= (int)$TripRegistration['TripRegistrationId'] ?>">
+                            <button class="SmallActionButton IsOutline IconActionButton" type="submit" aria-label="Rit verwijderen" title="Rit verwijderen">
+                              <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                                <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"></path>
+                              </svg>
+                            </button>
+                          </form>
                         </div>
                       </article>
                       <div class="AdminTripEditPanel">
@@ -529,7 +730,9 @@ $LatestUser = $Users[0] ?? null;
                             <span class="FormLabel">Startlocatie</span>
                             <select class="FormInput" name="StartLocationId" required>
                               <?php foreach ($Locations as $Location): ?>
-                                <option value="<?= (int)$Location['LocationId'] ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['StartLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?></option>
+                                <?php if ((int)$Location['IsActive'] === 1 || (int)$Location['LocationId'] === (int)$TripRegistration['StartLocationId']): ?>
+                                  <option value="<?= (int)$Location['LocationId'] ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['StartLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?><?= (int)$Location['IsActive'] === 1 ? '' : ' (niet actief)' ?></option>
+                                <?php endif; ?>
                               <?php endforeach; ?>
                             </select>
                           </label>
@@ -538,7 +741,9 @@ $LatestUser = $Users[0] ?? null;
                             <span class="FormLabel">Eindlocatie</span>
                             <select class="FormInput" name="EndLocationId" data-description-target="#AdminTripDescription-<?= (int)$TripRegistration['TripRegistrationId'] ?>" required>
                               <?php foreach ($Locations as $Location): ?>
-                                <option value="<?= (int)$Location['LocationId'] ?>" data-default-trip-description="<?= EscapeValue((string)($Location['DefaultTripDescription'] ?? '')) ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['EndLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?></option>
+                                <?php if ((int)$Location['IsActive'] === 1 || (int)$Location['LocationId'] === (int)$TripRegistration['EndLocationId']): ?>
+                                  <option value="<?= (int)$Location['LocationId'] ?>" data-default-trip-description="<?= EscapeValue((string)($Location['DefaultTripDescription'] ?? '')) ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['EndLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?><?= (int)$Location['IsActive'] === 1 ? '' : ' (niet actief)' ?></option>
+                                <?php endif; ?>
                               <?php endforeach; ?>
                             </select>
                           </label>
@@ -551,6 +756,11 @@ $LatestUser = $Users[0] ?? null;
                           <label class="AdminCheckboxLabel">
                             <input name="IsRoundTrip" type="checkbox" value="1"<?= (int)$TripRegistration['IsRoundTrip'] === 1 ? ' checked' : '' ?>>
                             <span>Heen en weer</span>
+                          </label>
+
+                          <label class="AdminCheckboxLabel">
+                            <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
+                            <span>Woon-werkcompensatie (-72 km)</span>
                           </label>
 
                           <button class="SmallActionButton" type="submit">Opslaan</button>
@@ -567,6 +777,26 @@ $LatestUser = $Users[0] ?? null;
         </section>
       </main>
     </div>
+  </div>
+  <div class="ConfirmModal" id="ConfirmModal" aria-hidden="true">
+    <div class="ConfirmModalBackdrop" data-confirm-cancel></div>
+    <section class="ConfirmModalPanel" role="dialog" aria-modal="true" aria-labelledby="ConfirmModalTitle" aria-describedby="ConfirmModalMessage">
+      <header class="ConfirmModalHeader">
+        <span class="ConfirmModalIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"></path>
+          </svg>
+        </span>
+        <div>
+          <h2 id="ConfirmModalTitle">Verwijderen bevestigen</h2>
+          <p id="ConfirmModalMessage">Weet je zeker dat je dit item wilt verwijderen?</p>
+        </div>
+      </header>
+      <div class="ConfirmModalActions">
+        <button class="SmallActionButton IsOutline" type="button" data-confirm-cancel>Annuleren</button>
+        <button class="SmallActionButton" type="button" id="ConfirmModalSubmit">Verwijderen</button>
+      </div>
+    </section>
   </div>
   <script src="js/admin.js" defer></script>
 </body>

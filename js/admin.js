@@ -1,46 +1,152 @@
 (function () {
   const FilterInputs = Array.from(document.querySelectorAll("[data-filter-input]"));
+  const FilterApplyButtons = Array.from(document.querySelectorAll("[data-filter-apply]"));
 
   if (!FilterInputs.length) {
     return;
+  }
+
+  function ApplyFilter(FilterName, SearchValue) {
+    const FilterItems = Array.from(document.querySelectorAll('[data-filter-item="' + FilterName + '"]'));
+    const FilterGroups = Array.from(document.querySelectorAll('[data-filter-group="' + FilterName + '"]')).reverse();
+
+    FilterItems.forEach(function (FilterItem) {
+      const RowValue = FilterItem.dataset.searchValue || "";
+      FilterItem.classList.toggle("IsHidden", SearchValue !== "" && !RowValue.includes(SearchValue));
+    });
+
+    FilterGroups.forEach(function (FilterGroup) {
+      const VisibleItems = Array.from(FilterGroup.querySelectorAll('[data-filter-item="' + FilterName + '"]')).filter(function (FilterItem) {
+        return !FilterItem.classList.contains("IsHidden");
+      });
+      const VisibleGroups = Array.from(FilterGroup.querySelectorAll('[data-filter-group="' + FilterName + '"]')).filter(function (NestedGroup) {
+        return NestedGroup !== FilterGroup && !NestedGroup.classList.contains("IsHidden");
+      });
+
+      FilterGroup.classList.toggle("IsHidden", SearchValue !== "" && VisibleItems.length === 0 && VisibleGroups.length === 0);
+    });
+
+    FilterApplyButtons.forEach(function (FilterApplyButton) {
+      const ButtonValue = (FilterApplyButton.dataset.filterValue || "").trim().toLowerCase();
+      FilterApplyButton.classList.toggle("IsActive", FilterApplyButton.dataset.filterApply === FilterName && SearchValue !== "" && ButtonValue === SearchValue);
+    });
   }
 
   FilterInputs.forEach(function (FilterInput) {
     FilterInput.addEventListener("input", function () {
       const FilterName = FilterInput.dataset.filterInput;
       const SearchValue = FilterInput.value.trim().toLowerCase();
-      const FilterItems = Array.from(document.querySelectorAll('[data-filter-item="' + FilterName + '"]'));
-      const FilterGroups = Array.from(document.querySelectorAll('[data-filter-group="' + FilterName + '"]')).reverse();
+      ApplyFilter(FilterName, SearchValue);
+    });
+  });
 
-      FilterItems.forEach(function (FilterItem) {
-        const RowValue = FilterItem.dataset.searchValue || "";
-        FilterItem.classList.toggle("IsHidden", SearchValue !== "" && !RowValue.includes(SearchValue));
-      });
+  FilterApplyButtons.forEach(function (FilterApplyButton) {
+    FilterApplyButton.addEventListener("click", function () {
+      const FilterName = FilterApplyButton.dataset.filterApply;
+      const FilterInput = document.querySelector('[data-filter-input="' + FilterName + '"]');
 
-      FilterGroups.forEach(function (FilterGroup) {
-        const VisibleItems = Array.from(FilterGroup.querySelectorAll('[data-filter-item="' + FilterName + '"]')).filter(function (FilterItem) {
-          return !FilterItem.classList.contains("IsHidden");
-        });
-        const VisibleGroups = Array.from(FilterGroup.querySelectorAll('[data-filter-group="' + FilterName + '"]')).filter(function (NestedGroup) {
-          return NestedGroup !== FilterGroup && !NestedGroup.classList.contains("IsHidden");
-        });
+      if (!FilterInput) {
+        return;
+      }
 
-        FilterGroup.classList.toggle("IsHidden", SearchValue !== "" && VisibleItems.length === 0 && VisibleGroups.length === 0);
-      });
+      FilterInput.value = FilterApplyButton.dataset.filterValue || "";
+      ApplyFilter(FilterName, FilterInput.value.trim().toLowerCase());
     });
   });
 })();
 
 (function () {
   const ConfirmForms = Array.from(document.querySelectorAll("form[data-confirm]"));
+  const ConfirmModal = document.getElementById("ConfirmModal");
+  const ConfirmMessage = document.getElementById("ConfirmModalMessage");
+  const ConfirmSubmit = document.getElementById("ConfirmModalSubmit");
+  const ConfirmCancelButtons = Array.from(document.querySelectorAll("[data-confirm-cancel]"));
+  let PendingConfirmForm = null;
+
+  if (!ConfirmForms.length || !ConfirmModal || !ConfirmMessage || !ConfirmSubmit) {
+    return;
+  }
+
+  function OpenConfirmModal(ConfirmForm) {
+    PendingConfirmForm = ConfirmForm;
+    ConfirmMessage.textContent = ConfirmForm.dataset.confirm || "Weet je het zeker?";
+    ConfirmModal.classList.add("IsOpen");
+    ConfirmModal.setAttribute("aria-hidden", "false");
+    ConfirmSubmit.focus();
+  }
+
+  function CloseConfirmModal() {
+    ConfirmModal.classList.remove("IsOpen");
+    ConfirmModal.setAttribute("aria-hidden", "true");
+    PendingConfirmForm = null;
+  }
 
   ConfirmForms.forEach(function (ConfirmForm) {
     ConfirmForm.addEventListener("submit", function (Event) {
-      const Message = ConfirmForm.dataset.confirm || "Weet je het zeker?";
+      Event.preventDefault();
+      OpenConfirmModal(ConfirmForm);
+    });
+  });
 
-      if (!window.confirm(Message)) {
-        Event.preventDefault();
+  ConfirmCancelButtons.forEach(function (CancelButton) {
+    CancelButton.addEventListener("click", CloseConfirmModal);
+  });
+
+  ConfirmSubmit.addEventListener("click", function () {
+    if (PendingConfirmForm) {
+      PendingConfirmForm.submit();
+    }
+  });
+
+  document.addEventListener("keydown", function (Event) {
+    if (Event.key === "Escape" && ConfirmModal.classList.contains("IsOpen")) {
+      CloseConfirmModal();
+    }
+  });
+})();
+
+(function () {
+  const LocationLists = Array.from(document.querySelectorAll("[data-location-list]"));
+  const MoveButtons = Array.from(document.querySelectorAll("[data-location-move]"));
+
+  if (!LocationLists.length || !MoveButtons.length) {
+    return;
+  }
+
+  function UpdateLocationInputState(LocationItem, TargetListName) {
+    const Input = LocationItem.querySelector('input[name="ActiveLocationIds[]"]');
+
+    if (Input) {
+      Input.disabled = TargetListName !== "active";
+    }
+  }
+
+  document.querySelectorAll("[data-location-option]").forEach(function (LocationItem) {
+    LocationItem.addEventListener("click", function () {
+      LocationItem.classList.toggle("IsSelected");
+    });
+  });
+
+  MoveButtons.forEach(function (MoveButton) {
+    MoveButton.addEventListener("click", function () {
+      const TargetListName = MoveButton.dataset.locationMove;
+      const TargetList = document.querySelector('[data-location-list="' + TargetListName + '"]');
+      const SelectedItems = Array.from(document.querySelectorAll("[data-location-option].IsSelected"));
+
+      if (!TargetList || !SelectedItems.length) {
+        return;
       }
+
+      SelectedItems.forEach(function (SelectedItem) {
+        if (TargetList.contains(SelectedItem)) {
+          SelectedItem.classList.remove("IsSelected");
+          return;
+        }
+
+        UpdateLocationInputState(SelectedItem, TargetListName);
+        SelectedItem.classList.remove("IsSelected");
+        TargetList.appendChild(SelectedItem);
+      });
     });
   });
 })();
@@ -83,6 +189,20 @@
   if (window.location.hash === "#ExportPanel" || window.location.search.includes("ExportStartDate")) {
     SetActiveView("Export");
   }
+
+  if (window.location.search.includes("TripStartDate") || window.location.search.includes("TripEndDate") || window.location.search.includes("ShowAllTrips")) {
+    SetActiveView("Trips");
+  }
+})();
+
+(function () {
+  const AutoDismissAlerts = Array.from(document.querySelectorAll("[data-auto-dismiss]"));
+
+  AutoDismissAlerts.forEach(function (Alert) {
+    window.setTimeout(function () {
+      Alert.classList.add("IsDismissed");
+    }, 4500);
+  });
 })();
 
 (function () {

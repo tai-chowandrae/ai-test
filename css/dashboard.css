@@ -355,6 +355,11 @@ button {
   width: 100%;
 }
 
+.TripForm input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.9;
+}
+
 .TripForm input:focus,
 .TripForm select:focus,
 .TripForm textarea:focus {

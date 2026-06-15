@@ -196,7 +196,7 @@ textarea {
 }
 
 .SidebarCard {
-  align-items: center;
+  align-items: flex-start;
   background: var(--SurfaceRaisedColor);
   border: 1px solid var(--BorderColor);
   border-radius: 8px;
@@ -204,8 +204,17 @@ textarea {
   cursor: pointer;
   display: flex;
   gap: 8px;
+  min-width: 0;
   padding: 9px 11px;
   text-align: left;
+}
+
+.SidebarCard > span:last-child {
+  min-width: 0;
+}
+
+.SidebarCard.IsActive {
+  border-color: var(--AccentColor);
 }
 
 [data-filter-item].IsHidden,
@@ -218,6 +227,7 @@ textarea {
   border-radius: 50%;
   flex-shrink: 0;
   height: 8px;
+  margin-top: 5px;
   width: 8px;
 }
 
@@ -238,7 +248,7 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  width: 168px;
+  width: 100%;
 }
 
 .SidebarEmpty,
@@ -342,6 +352,66 @@ textarea {
   color: var(--TextColor);
 }
 
+.MonthlyTotals {
+  border-top: 1px solid var(--BorderColor);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.MonthlyTotalsHeader {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.MonthlyTotalsHeader span {
+  color: var(--MutedColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.MonthlyTotalsHeader small {
+  color: var(--MutedColor);
+  font-size: 11px;
+}
+
+.MonthlyTotalsGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.MonthlyTotalItem {
+  background: var(--SurfaceRaisedColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.MonthlyTotalItem a {
+  color: var(--AccentColor);
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.MonthlyTotalItem a:hover,
+.MonthlyTotalItem a:focus-visible {
+  text-decoration: underline;
+}
+
+.MonthlyTotalItem span {
+  color: var(--MutedColor);
+  font-size: 12px;
+}
+
 .AlertCard {
   color: var(--DangerColor);
   padding: 14px 16px;
@@ -351,11 +421,105 @@ textarea {
   color: var(--SuccessColor);
 }
 
+.AlertCard.IsDismissed {
+  display: none !important;
+}
+
 .InlineHint {
   color: var(--MutedColor);
   font-size: 12px;
   line-height: 1.45;
   margin-bottom: 12px;
+}
+
+.LocationVisibilityForm {
+  display: grid;
+  gap: 12px;
+}
+
+.LocationDualList {
+  align-items: stretch;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+}
+
+.LocationDualColumn {
+  background: var(--SurfaceRaisedColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.LocationDualColumn header {
+  border-bottom: 1px solid var(--BorderColor);
+  padding: 10px 12px;
+}
+
+.LocationDualColumn strong {
+  display: block;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.LocationDualColumn small {
+  color: var(--MutedColor);
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.LocationDualListBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  min-height: 180px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.LocationDualItem {
+  background: var(--BackgroundColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 7px;
+  color: var(--TextColor);
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.LocationDualItem.IsSelected {
+  border-color: var(--AccentColor);
+}
+
+.LocationDualItem span {
+  display: block;
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.LocationDualItem small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.LocationDualActions {
+  align-self: center;
+  display: grid;
+  gap: 8px;
+}
+
+.LocationVisibilitySaveButton {
+  justify-self: start;
 }
 
 .AdminForm {
@@ -364,7 +528,8 @@ textarea {
   grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr) auto;
 }
 
-.ExportForm {
+.ExportForm,
+.PeriodFilterForm {
   align-items: end;
   display: grid;
   gap: 12px;
@@ -373,10 +538,19 @@ textarea {
 }
 
 .AdminForm label,
-.ExportForm label {
+.ExportForm label,
+.PeriodFilterForm label {
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+
+.PeriodFilterForm {
+  grid-template-columns: minmax(160px, 220px) minmax(160px, 220px) auto auto;
+}
+
+.PeriodFilterReset {
+  min-height: 38px;
 }
 
 .FormLabel {
@@ -397,6 +571,11 @@ textarea {
   outline: none;
   padding: 9px 11px;
   width: 100%;
+}
+
+.FormInput[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.9;
 }
 
 .FormTextarea {
@@ -545,6 +724,12 @@ textarea {
   width: 34px;
 }
 
+.UserAvatar.IsInactive {
+  background: var(--SurfaceRaisedColor);
+  border: 1px solid var(--BorderColor);
+  color: var(--MutedColor);
+}
+
 .RowBody {
   flex: 1;
   min-width: 0;
@@ -590,7 +775,10 @@ textarea {
   display: grid;
   flex-shrink: 0;
   gap: 8px;
-  grid-template-columns: 72px 62px 84px;
+  grid-auto-columns: 84px;
+  grid-template-columns: 72px 62px 62px 84px 34px;
+  grid-template-rows: 28px;
+  width: 346px;
 }
 
 .TripAdminMonthGroup {
@@ -779,18 +967,55 @@ textarea {
 .TripAdminActions .RoleBadge {
   align-items: center;
   display: inline-flex;
+  grid-row: 1;
   height: 28px;
   justify-content: center;
   padding-bottom: 0;
   padding-top: 0;
 }
 
+.TripAdminActions form {
+  display: flex;
+  grid-row: 1;
+}
+
 .DistanceBadge {
+  grid-column: 1;
   justify-content: flex-end;
   text-align: right;
 }
 
-.ReturnBadge.IsEmpty {
+.ReturnBadge {
+  grid-column: 2;
+}
+
+.CommuteBadge {
+  grid-column: 3;
+}
+
+.TripAdminActions .AdminTripEditToggle {
+  grid-column: 4;
+}
+
+.AdminTripDeleteForm {
+  grid-column: 5;
+}
+
+.IconActionButton {
+  aspect-ratio: 1;
+  padding-left: 0;
+  padding-right: 0;
+  width: 34px;
+}
+
+.IconActionButton svg {
+  fill: currentColor;
+  height: 15px;
+  width: 15px;
+}
+
+.ReturnBadge.IsEmpty,
+.CommuteBadge.IsEmpty {
   opacity: 0;
 }
 
@@ -804,6 +1029,90 @@ textarea {
   background: var(--SurfaceRaisedColor);
   border-color: rgba(232, 184, 75, 0.55);
   color: var(--AccentColor);
+}
+
+.SmallActionButton.IsOutline:hover,
+.SmallActionButton.IsOutline:focus-visible {
+  background: var(--AccentColor);
+  border-color: var(--AccentColor);
+  color: #000;
+}
+
+.ConfirmModal {
+  align-items: center;
+  display: none;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 100;
+}
+
+.ConfirmModal.IsOpen {
+  display: flex;
+}
+
+.ConfirmModalBackdrop {
+  background: rgba(0, 0, 0, 0.72);
+  inset: 0;
+  position: absolute;
+}
+
+.ConfirmModalPanel {
+  background: var(--SurfaceColor);
+  border: 1px solid var(--BorderColor);
+  border-radius: 10px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  max-width: 420px;
+  padding: 18px;
+  position: relative;
+  width: 100%;
+}
+
+.ConfirmModalHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+}
+
+.ConfirmModalIcon {
+  align-items: center;
+  background: rgba(232, 184, 75, 0.12);
+  border: 1px solid rgba(232, 184, 75, 0.35);
+  border-radius: 8px;
+  color: var(--AccentColor);
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.ConfirmModalIcon svg {
+  fill: currentColor;
+  height: 18px;
+  width: 18px;
+}
+
+.ConfirmModal h2 {
+  font-family: "Barlow Condensed", Arial, sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ConfirmModal p {
+  color: var(--MutedColor);
+  font-size: 13px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.ConfirmModalActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 
 .ExportTextarea {
@@ -914,6 +1223,18 @@ textarea {
 
   .ExportForm {
     grid-template-columns: 1fr;
+  }
+
+  .PeriodFilterForm {
+    grid-template-columns: 1fr;
+  }
+
+  .LocationDualList {
+    grid-template-columns: 1fr;
+  }
+
+  .LocationDualActions {
+    grid-template-columns: 1fr 1fr;
   }
 
   .AdminFormWide {

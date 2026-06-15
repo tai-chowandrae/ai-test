@@ -17,7 +17,7 @@ function EscapeValue(string $Value): string
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Account aanmaken | Skills2Work</title>
+  <title>Account aanmaken | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -28,8 +28,8 @@ function EscapeValue(string $Value): string
   <main class="LoginPage" aria-labelledby="RegisterTitle">
     <section class="LoginShell RegisterShell">
       <header class="LoginTopbar">
-        <a class="LoginLogo" href="/login" aria-label="Skills2Work login">
-          SKILLS<span>2</span>WORK
+        <a class="LoginLogo" href="/login" aria-label="KM2WORK login">
+          KM<span>2</span>WORK
         </a>
       </header>
 

@@ -55,7 +55,7 @@ try {
     $DatabaseConnection = GetDatabaseConnection();
 
     $LocationsStatement = $DatabaseConnection->query(
-        'SELECT LocationId, Name, DefaultTripDescription
+        'SELECT LocationId, Name, DefaultTripDescription, IsActive
          FROM Locations
          ORDER BY Name ASC'
     );
@@ -64,7 +64,8 @@ try {
     $TripsStatement = $DatabaseConnection->prepare(
         'SELECT TripRegistrations.TripRegistrationId, TripRegistrations.TripDate,
                 TripRegistrations.StartLocationId, TripRegistrations.EndLocationId,
-                TripRegistrations.IsRoundTrip, TripRegistrations.TripDescription, TripRegistrations.DistanceKilometers,
+                TripRegistrations.IsRoundTrip, TripRegistrations.ApplyCommuteCompensation,
+                TripRegistrations.TripDescription, TripRegistrations.DistanceKilometers,
                 StartLocations.Name AS StartLocationName,
                 EndLocations.Name AS EndLocationName
          FROM TripRegistrations
@@ -108,7 +109,7 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Ritten overzicht | Skills2Work</title>
+  <title>Ritten overzicht | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -118,7 +119,7 @@ try {
   <main class="DashboardPage" aria-labelledby="TripsTitle">
     <section class="DashboardShell">
       <header class="DashboardTopbar">
-        <a class="DashboardLogo" href="/dashboard">SKILLS<span>2</span>WORK</a>
+        <a class="DashboardLogo" href="/dashboard">KM<span>2</span>WORK</a>
         <button class="IconButton" id="DashboardMenuButton" type="button" aria-label="Menu openen" aria-expanded="false">
           <span></span>
           <span></span>
@@ -191,7 +192,7 @@ try {
                   <div class="TripRow">
                     <span class="TripSummary">
                       <span class="TripTitleLine">
-                        <strong><?= EscapeValue((string)$TripRegistration['StartLocationName']) ?> naar <?= EscapeValue((string)$TripRegistration['EndLocationName']) ?><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? ' v.v.' : '' ?></strong>
+                        <strong><?= EscapeValue((string)$TripRegistration['StartLocationName']) ?> naar <?= EscapeValue((string)$TripRegistration['EndLocationName']) ?><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? ' v.v.' : '' ?><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' - woon-werk' : '' ?></strong>
                         <button class="TripEditToggle" type="button" aria-expanded="false">Bewerken</button>
                       </span>
                       <small><?= EscapeValue(FormatDistance((float)$TripRegistration['DistanceKilometers'])) ?> km</small>
@@ -215,7 +216,9 @@ try {
                         <span>Startlocatie</span>
                         <select name="StartLocationId" required>
                           <?php foreach ($Locations as $Location): ?>
-                            <option value="<?= (int)$Location['LocationId'] ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['StartLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?></option>
+                            <?php if ((int)$Location['IsActive'] === 1 || (int)$Location['LocationId'] === (int)$TripRegistration['StartLocationId']): ?>
+                              <option value="<?= (int)$Location['LocationId'] ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['StartLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?><?= (int)$Location['IsActive'] === 1 ? '' : ' (niet actief)' ?></option>
+                            <?php endif; ?>
                           <?php endforeach; ?>
                         </select>
                       </label>
@@ -224,7 +227,9 @@ try {
                         <span>Eindlocatie</span>
                         <select name="EndLocationId" data-description-target="#TripDescription-<?= (int)$TripRegistration['TripRegistrationId'] ?>" required>
                           <?php foreach ($Locations as $Location): ?>
-                            <option value="<?= (int)$Location['LocationId'] ?>" data-default-trip-description="<?= EscapeValue((string)($Location['DefaultTripDescription'] ?? '')) ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['EndLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?></option>
+                            <?php if ((int)$Location['IsActive'] === 1 || (int)$Location['LocationId'] === (int)$TripRegistration['EndLocationId']): ?>
+                              <option value="<?= (int)$Location['LocationId'] ?>" data-default-trip-description="<?= EscapeValue((string)($Location['DefaultTripDescription'] ?? '')) ?>"<?= (int)$Location['LocationId'] === (int)$TripRegistration['EndLocationId'] ? ' selected' : '' ?>><?= EscapeValue((string)$Location['Name']) ?><?= (int)$Location['IsActive'] === 1 ? '' : ' (niet actief)' ?></option>
+                            <?php endif; ?>
                           <?php endforeach; ?>
                         </select>
                       </label>
@@ -237,6 +242,11 @@ try {
                       <label class="CheckboxLabel">
                         <input name="IsRoundTrip" type="checkbox" value="1"<?= (int)$TripRegistration['IsRoundTrip'] === 1 ? ' checked' : '' ?>>
                         <span>Heen en weer</span>
+                      </label>
+
+                      <label class="CheckboxLabel">
+                        <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
+                        <span>Woon-werkcompensatie (-72 km)</span>
                       </label>
 
                       <div class="TripEditActions">

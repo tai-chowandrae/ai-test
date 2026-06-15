@@ -25,7 +25,7 @@
 - Locations are saved with a Google Place ID, formatted address, and optional latitude/longitude.
 - Driving distance for trip registrations is calculated server-side through Google Routes API.
 - Enable the required Google Maps Platform APIs for the key: Maps JavaScript API, Places API, and Routes API.
-- Existing databases must run the SQL migrations in `database/AddIsAdminToUsers.sql` and `database/AddLocationsAndTripRegistrations.sql`.
+- Existing databases must run the SQL migrations in `database/AddIsAdminToUsers.sql`, `database/AddLocationsAndTripRegistrations.sql`, `database/AddTripDescriptions.sql`, `database/AddCommuteCompensationToTripRegistrations.sql`, and `database/AddIsActiveToLocations.sql`.
 
 ## Project Structure
 

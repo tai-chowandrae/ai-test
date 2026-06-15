@@ -18,7 +18,7 @@ function EscapeValue(string $Value): string
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Inloggen | Skills2Work</title>
+  <title>Inloggen | KM2WORK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -28,8 +28,8 @@ function EscapeValue(string $Value): string
   <main class="LoginPage" aria-labelledby="LoginTitle">
     <section class="LoginShell">
       <header class="LoginTopbar">
-        <a class="LoginLogo" href="/login" aria-label="Skills2Work login">
-          SKILLS<span>2</span>WORK
+        <a class="LoginLogo" href="/login" aria-label="KM2WORK login">
+          KM<span>2</span>WORK
         </a>
       </header>
 
@@ -37,7 +37,7 @@ function EscapeValue(string $Value): string
         <div class="LoginIntro">
           <p class="LoginKicker">Welkom terug</p>
           <h1 id="LoginTitle">Inloggen</h1>
-          <p>Log in om verder te gaan met je Skills2Work omgeving.</p>
+          <p>Log in om verder te gaan met je KM2WORK omgeving.</p>
         </div>
 
         <form class="LoginForm" id="LoginForm" action="/api/index.php" method="post" novalidate>

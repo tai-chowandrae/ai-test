@@ -37,6 +37,7 @@ function RedirectToAdminWithMessage(string $Type, string $Message, string $Admin
     $_SESSION['AdminMessage'] = [
         'Type' => $Type,
         'Message' => $Message,
+        'View' => $AdminView !== '' ? $AdminView : 'Welcome',
     ];
 
     $Location = $AdminView !== '' ? '/admin#Admin' . $AdminView : '/admin';
@@ -295,6 +296,48 @@ function HandleUpdateLocationNameRequest(): void
     }
 }
 
+function HandleUpdateLocationVisibilityRequest(): void
+{
+    RequireAdmin();
+
+    $ActiveLocationIds = $_POST['ActiveLocationIds'] ?? [];
+
+    if (!is_array($ActiveLocationIds)) {
+        $ActiveLocationIds = [];
+    }
+
+    $ActiveLocationIds = array_values(array_unique(array_filter(array_map('intval', $ActiveLocationIds), function (int $LocationId): bool {
+        return $LocationId > 0;
+    })));
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+        $DatabaseConnection->beginTransaction();
+
+        $DatabaseConnection->exec('UPDATE Locations SET IsActive = 0');
+
+        if ($ActiveLocationIds) {
+            $Placeholders = implode(',', array_fill(0, count($ActiveLocationIds), '?'));
+            $ActivateLocationsStatement = $DatabaseConnection->prepare(
+                'UPDATE Locations
+                 SET IsActive = 1
+                 WHERE LocationId IN (' . $Placeholders . ')'
+            );
+            $ActivateLocationsStatement->execute($ActiveLocationIds);
+        }
+
+        $DatabaseConnection->commit();
+
+        RedirectToAdminWithMessage('Success', 'Locatiezichtbaarheid is bijgewerkt.', 'Locations');
+    } catch (PDOException $Exception) {
+        if (isset($DatabaseConnection) && $DatabaseConnection->inTransaction()) {
+            $DatabaseConnection->rollBack();
+        }
+
+        RedirectToAdminWithMessage('Error', 'De locatiezichtbaarheid kon niet worden bijgewerkt.', 'Locations');
+    }
+}
+
 function HandleDeleteLocationRequest(): void
 {
     RequireAdmin();
@@ -312,9 +355,13 @@ function HandleDeleteLocationRequest(): void
         $UsageStatement = $DatabaseConnection->prepare(
             'SELECT COUNT(*) AS UsageCount
              FROM TripRegistrations
-             WHERE StartLocationId = :LocationId OR EndLocationId = :LocationId'
+             WHERE StartLocationId = :StartLocationId
+                OR EndLocationId = :EndLocationId'
         );
-        $UsageStatement->execute(['LocationId' => $LocationId]);
+        $UsageStatement->execute([
+            'StartLocationId' => $LocationId,
+            'EndLocationId' => $LocationId,
+        ]);
         $Usage = $UsageStatement->fetch();
 
         if ((int)$Usage['UsageCount'] > 0) {
@@ -335,7 +382,7 @@ function HandleDeleteLocationRequest(): void
 function GetLocationById(PDO $DatabaseConnection, int $LocationId): ?array
 {
     $LocationStatement = $DatabaseConnection->prepare(
-        'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription
+        'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive
          FROM Locations
          WHERE LocationId = :LocationId
          LIMIT 1'
@@ -344,6 +391,15 @@ function GetLocationById(PDO $DatabaseConnection, int $LocationId): ?array
     $Location = $LocationStatement->fetch();
 
     return $Location ?: null;
+}
+
+function IsLocationSelectableForTrip(?array $Location, ?int $ExistingLocationId = null): bool
+{
+    if (!$Location) {
+        return false;
+    }
+
+    return (int)$Location['IsActive'] === 1 || ($ExistingLocationId !== null && (int)$Location['LocationId'] === $ExistingLocationId);
 }
 
 function BuildRoutesWaypoint(array $Location): array
@@ -559,13 +615,19 @@ function ComputeDrivingDistanceMeters(array $StartLocation, array $EndLocation):
     return (int)$ResponseData['routes'][0]['distanceMeters'];
 }
 
-function CalculateStoredTripDistanceMeters(array $StartLocation, array $EndLocation, int $IsRoundTrip): int
+const CommuteCompensationDeductionMeters = 72000;
+
+function CalculateStoredTripDistanceMeters(array $StartLocation, array $EndLocation, int $IsRoundTrip, int $ApplyCommuteCompensation): int
 {
     $DistanceMeters = ComputeDrivingDistanceMeters($StartLocation, $EndLocation);
 
     // Store the full travel distance when the trip is marked as return travel.
     if ($IsRoundTrip === 1) {
         $DistanceMeters *= 2;
+    }
+
+    if ($ApplyCommuteCompensation === 1) {
+        $DistanceMeters = max(0, $DistanceMeters - CommuteCompensationDeductionMeters);
     }
 
     return $DistanceMeters;
@@ -579,6 +641,7 @@ function HandleCreateTripRegistrationRequest(): void
     $StartLocationId = (int)NormalizePostValue('StartLocationId');
     $EndLocationId = (int)NormalizePostValue('EndLocationId');
     $IsRoundTrip = NormalizePostValue('IsRoundTrip') === '1' ? 1 : 0;
+    $ApplyCommuteCompensation = NormalizePostValue('ApplyCommuteCompensation') === '1' ? 1 : 0;
     $TripDescription = NormalizePostValue('TripDescription');
 
     if ($TripDate === '' || $StartLocationId <= 0 || $EndLocationId <= 0) {
@@ -603,13 +666,17 @@ function HandleCreateTripRegistrationRequest(): void
             RedirectToDashboardWithMessage('Error', 'Een van de gekozen locaties bestaat niet.');
         }
 
-        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip);
+        if (!IsLocationSelectableForTrip($StartLocation) || !IsLocationSelectableForTrip($EndLocation)) {
+            RedirectToDashboardWithMessage('Error', 'Een van de gekozen locaties is niet actief.');
+        }
+
+        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation);
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
         $CreatedAt = date('Y-m-d H:i:s');
 
         $CreateTripStatement = $DatabaseConnection->prepare(
-            'INSERT INTO TripRegistrations (UserId, TripDate, StartLocationId, EndLocationId, IsRoundTrip, TripDescription, DistanceMeters, DistanceKilometers, CreatedAt)
-             VALUES (:UserId, :TripDate, :StartLocationId, :EndLocationId, :IsRoundTrip, :TripDescription, :DistanceMeters, :DistanceKilometers, :CreatedAt)'
+            'INSERT INTO TripRegistrations (UserId, TripDate, StartLocationId, EndLocationId, IsRoundTrip, ApplyCommuteCompensation, TripDescription, DistanceMeters, DistanceKilometers, CreatedAt)
+             VALUES (:UserId, :TripDate, :StartLocationId, :EndLocationId, :IsRoundTrip, :ApplyCommuteCompensation, :TripDescription, :DistanceMeters, :DistanceKilometers, :CreatedAt)'
         );
         $CreateTripStatement->execute([
             'UserId' => (int)$_SESSION['UserId'],
@@ -617,6 +684,7 @@ function HandleCreateTripRegistrationRequest(): void
             'StartLocationId' => $StartLocationId,
             'EndLocationId' => $EndLocationId,
             'IsRoundTrip' => $IsRoundTrip,
+            'ApplyCommuteCompensation' => $ApplyCommuteCompensation,
             'TripDescription' => $TripDescription !== '' ? $TripDescription : null,
             'DistanceMeters' => $DistanceMeters,
             'DistanceKilometers' => $DistanceKilometers,
@@ -638,6 +706,7 @@ function HandleUpdateTripRegistrationRequest(): void
     $StartLocationId = (int)NormalizePostValue('StartLocationId');
     $EndLocationId = (int)NormalizePostValue('EndLocationId');
     $IsRoundTrip = NormalizePostValue('IsRoundTrip') === '1' ? 1 : 0;
+    $ApplyCommuteCompensation = NormalizePostValue('ApplyCommuteCompensation') === '1' ? 1 : 0;
     $TripDescription = NormalizePostValue('TripDescription');
 
     if ($TripRegistrationId <= 0 || $TripDate === '' || $StartLocationId <= 0 || $EndLocationId <= 0) {
@@ -657,7 +726,7 @@ function HandleUpdateTripRegistrationRequest(): void
         $DatabaseConnection = GetDatabaseConnection();
 
         $ExistingTripStatement = $DatabaseConnection->prepare(
-            'SELECT TripRegistrationId
+            'SELECT TripRegistrationId, StartLocationId, EndLocationId
              FROM TripRegistrations
              WHERE TripRegistrationId = :TripRegistrationId
                AND UserId = :UserId
@@ -668,7 +737,9 @@ function HandleUpdateTripRegistrationRequest(): void
             'UserId' => (int)$_SESSION['UserId'],
         ]);
 
-        if (!$ExistingTripStatement->fetch()) {
+        $ExistingTrip = $ExistingTripStatement->fetch();
+
+        if (!$ExistingTrip) {
             RedirectToTripsWithMessage('Error', 'Deze rit bestaat niet of hoort niet bij jouw account.');
         }
 
@@ -679,7 +750,11 @@ function HandleUpdateTripRegistrationRequest(): void
             RedirectToTripsWithMessage('Error', 'Een van de gekozen locaties bestaat niet.');
         }
 
-        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip);
+        if (!IsLocationSelectableForTrip($StartLocation, (int)$ExistingTrip['StartLocationId']) || !IsLocationSelectableForTrip($EndLocation, (int)$ExistingTrip['EndLocationId'])) {
+            RedirectToTripsWithMessage('Error', 'Een van de gekozen locaties is niet actief.');
+        }
+
+        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation);
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
 
         $UpdateTripStatement = $DatabaseConnection->prepare(
@@ -688,6 +763,7 @@ function HandleUpdateTripRegistrationRequest(): void
                  StartLocationId = :StartLocationId,
                  EndLocationId = :EndLocationId,
                  IsRoundTrip = :IsRoundTrip,
+                 ApplyCommuteCompensation = :ApplyCommuteCompensation,
                  TripDescription = :TripDescription,
                  DistanceMeters = :DistanceMeters,
                  DistanceKilometers = :DistanceKilometers
@@ -699,6 +775,7 @@ function HandleUpdateTripRegistrationRequest(): void
             'StartLocationId' => $StartLocationId,
             'EndLocationId' => $EndLocationId,
             'IsRoundTrip' => $IsRoundTrip,
+            'ApplyCommuteCompensation' => $ApplyCommuteCompensation,
             'TripDescription' => $TripDescription !== '' ? $TripDescription : null,
             'DistanceMeters' => $DistanceMeters,
             'DistanceKilometers' => $DistanceKilometers,
@@ -753,6 +830,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
     $StartLocationId = (int)NormalizePostValue('StartLocationId');
     $EndLocationId = (int)NormalizePostValue('EndLocationId');
     $IsRoundTrip = NormalizePostValue('IsRoundTrip') === '1' ? 1 : 0;
+    $ApplyCommuteCompensation = NormalizePostValue('ApplyCommuteCompensation') === '1' ? 1 : 0;
     $TripDescription = NormalizePostValue('TripDescription');
 
     if ($TripRegistrationId <= 0 || $TripDate === '' || $StartLocationId <= 0 || $EndLocationId <= 0) {
@@ -772,14 +850,16 @@ function HandleUpdateAdminTripRegistrationRequest(): void
         $DatabaseConnection = GetDatabaseConnection();
 
         $ExistingTripStatement = $DatabaseConnection->prepare(
-            'SELECT TripRegistrationId
+            'SELECT TripRegistrationId, StartLocationId, EndLocationId
              FROM TripRegistrations
              WHERE TripRegistrationId = :TripRegistrationId
              LIMIT 1'
         );
         $ExistingTripStatement->execute(['TripRegistrationId' => $TripRegistrationId]);
 
-        if (!$ExistingTripStatement->fetch()) {
+        $ExistingTrip = $ExistingTripStatement->fetch();
+
+        if (!$ExistingTrip) {
             RedirectToAdminWithMessage('Error', 'Deze rit bestaat niet.', 'Trips');
         }
 
@@ -790,7 +870,11 @@ function HandleUpdateAdminTripRegistrationRequest(): void
             RedirectToAdminWithMessage('Error', 'Een van de gekozen locaties bestaat niet.', 'Trips');
         }
 
-        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip);
+        if (!IsLocationSelectableForTrip($StartLocation, (int)$ExistingTrip['StartLocationId']) || !IsLocationSelectableForTrip($EndLocation, (int)$ExistingTrip['EndLocationId'])) {
+            RedirectToAdminWithMessage('Error', 'Een van de gekozen locaties is niet actief.', 'Trips');
+        }
+
+        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation);
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
 
         $UpdateTripStatement = $DatabaseConnection->prepare(
@@ -799,6 +883,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
                  StartLocationId = :StartLocationId,
                  EndLocationId = :EndLocationId,
                  IsRoundTrip = :IsRoundTrip,
+                 ApplyCommuteCompensation = :ApplyCommuteCompensation,
                  TripDescription = :TripDescription,
                  DistanceMeters = :DistanceMeters,
                  DistanceKilometers = :DistanceKilometers
@@ -809,6 +894,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
             'StartLocationId' => $StartLocationId,
             'EndLocationId' => $EndLocationId,
             'IsRoundTrip' => $IsRoundTrip,
+            'ApplyCommuteCompensation' => $ApplyCommuteCompensation,
             'TripDescription' => $TripDescription !== '' ? $TripDescription : null,
             'DistanceMeters' => $DistanceMeters,
             'DistanceKilometers' => $DistanceKilometers,
@@ -818,6 +904,34 @@ function HandleUpdateAdminTripRegistrationRequest(): void
         RedirectToAdminWithMessage('Success', 'Rit is bijgewerkt met ' . number_format($DistanceKilometers, 2, ',', '.') . ' km.', 'Trips');
     } catch (Throwable $Exception) {
         RedirectToAdminWithMessage('Error', 'De rit kon niet worden bijgewerkt: ' . $Exception->getMessage(), 'Trips');
+    }
+}
+
+function HandleDeleteAdminTripRegistrationRequest(): void
+{
+    RequireAdmin();
+
+    $TripRegistrationId = (int)NormalizePostValue('TripRegistrationId');
+
+    if ($TripRegistrationId <= 0) {
+        RedirectToAdminWithMessage('Error', 'Kies een geldige rit om te verwijderen.', 'Trips');
+    }
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+        $DeleteTripStatement = $DatabaseConnection->prepare(
+            'DELETE FROM TripRegistrations
+             WHERE TripRegistrationId = :TripRegistrationId'
+        );
+        $DeleteTripStatement->execute(['TripRegistrationId' => $TripRegistrationId]);
+
+        if ($DeleteTripStatement->rowCount() === 0) {
+            RedirectToAdminWithMessage('Error', 'Deze rit bestaat niet.', 'Trips');
+        }
+
+        RedirectToAdminWithMessage('Success', 'Rit is verwijderd.', 'Trips');
+    } catch (PDOException $Exception) {
+        RedirectToAdminWithMessage('Error', 'De rit kon niet worden verwijderd.', 'Trips');
     }
 }
 
@@ -857,6 +971,10 @@ if ($Action === 'UpdateLocationName') {
     HandleUpdateLocationNameRequest();
 }
 
+if ($Action === 'UpdateLocationVisibility') {
+    HandleUpdateLocationVisibilityRequest();
+}
+
 if ($Action === 'DeleteLocation') {
     HandleDeleteLocationRequest();
 }
@@ -875,6 +993,10 @@ if ($Action === 'DeleteTripRegistration') {
 
 if ($Action === 'UpdateAdminTripRegistration') {
     HandleUpdateAdminTripRegistrationRequest();
+}
+
+if ($Action === 'DeleteAdminTripRegistration') {
+    HandleDeleteAdminTripRegistrationRequest();
 }
 
 http_response_code(400);
