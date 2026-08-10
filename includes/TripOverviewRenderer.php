@@ -120,7 +120,7 @@ function RenderTripOverviewRegistration(array $TripRegistration, array $Location
 
         <label class="CheckboxLabel">
           <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
-          <span>Woon-werkcompensatie (-72 km)</span>
+          <span>Woon-werkcompensatie (-20 km)</span>
         </label>
 
         <div class="TripEditActions">

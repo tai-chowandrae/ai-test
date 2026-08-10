@@ -616,7 +616,7 @@ function ComputeDrivingDistanceMeters(array $StartLocation, array $EndLocation):
     return (int)$ResponseData['routes'][0]['distanceMeters'];
 }
 
-const CommuteCompensationDeductionMeters = 72000;
+const CommuteCompensationDeductionMeters = 20000;
 
 function CalculateStoredTripDistanceMeters(array $StartLocation, array $EndLocation, int $IsRoundTrip, int $ApplyCommuteCompensation): int
 {

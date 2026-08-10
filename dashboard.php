@@ -134,7 +134,7 @@ try {
 
             <label class="CheckboxLabel">
               <input name="ApplyCommuteCompensation" type="checkbox" value="1">
-              <span>Woon-werkcompensatie (-72 km)</span>
+              <span>Woon-werkcompensatie (-20 km)</span>
             </label>
 
             <button class="PrimaryDashboardButton" type="submit">Rit opslaan</button>

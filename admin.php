@@ -703,7 +703,7 @@ $LocationCount = count($Locations);
                         <div class="TripAdminActions">
                           <span class="RoleBadge DistanceBadge"><?= EscapeValue(FormatExportDistance((float)$TripRegistration['DistanceKilometers'])) ?> km</span>
                           <span class="RoleBadge ReturnBadge<?= (int)$TripRegistration['IsRoundTrip'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? 'Retour' : '' ?></span>
-                          <span class="RoleBadge CommuteBadge<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '-72 km' : '' ?></span>
+                          <span class="RoleBadge CommuteBadge<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '-20 km' : '' ?></span>
                           <button class="SmallActionButton IsOutline AdminTripEditToggle" type="button" aria-expanded="false">Bewerken</button>
                           <form class="AdminTripDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze rit wilt verwijderen?">
                             <input type="hidden" name="Action" value="DeleteAdminTripRegistration">
@@ -760,7 +760,7 @@ $LocationCount = count($Locations);
 
                           <label class="AdminCheckboxLabel">
                             <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
-                            <span>Woon-werkcompensatie (-72 km)</span>
+                            <span>Woon-werkcompensatie (-20 km)</span>
                           </label>
 
                           <button class="SmallActionButton" type="submit">Opslaan</button>
