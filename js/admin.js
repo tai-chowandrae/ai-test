@@ -114,10 +114,12 @@
   }
 
   function UpdateLocationInputState(LocationItem, TargetListName) {
-    const Input = LocationItem.querySelector('input[name="ActiveLocationIds[]"]');
+    const Input = LocationItem.querySelector('input[type="hidden"]');
+    const DualList = LocationItem.closest(".LocationDualList");
+    const EnabledListName = DualList ? (DualList.dataset.locationEnableList || "active") : "active";
 
     if (Input) {
-      Input.disabled = TargetListName !== "active";
+      Input.disabled = TargetListName !== EnabledListName;
     }
   }
 
@@ -130,8 +132,14 @@
   MoveButtons.forEach(function (MoveButton) {
     MoveButton.addEventListener("click", function () {
       const TargetListName = MoveButton.dataset.locationMove;
-      const TargetList = document.querySelector('[data-location-list="' + TargetListName + '"]');
-      const SelectedItems = Array.from(document.querySelectorAll("[data-location-option].IsSelected"));
+      const DualList = MoveButton.closest(".LocationDualList");
+
+      if (!DualList) {
+        return;
+      }
+
+      const TargetList = DualList.querySelector('[data-location-list="' + TargetListName + '"]');
+      const SelectedItems = Array.from(DualList.querySelectorAll("[data-location-option].IsSelected"));
 
       if (!TargetList || !SelectedItems.length) {
         return;
@@ -193,6 +201,38 @@
   if (window.location.search.includes("TripStartDate") || window.location.search.includes("TripEndDate") || window.location.search.includes("ShowAllTrips")) {
     SetActiveView("Trips");
   }
+})();
+
+(function () {
+  const UserSidebar = document.querySelector('[data-admin-section="Users"][data-initial-user-mode]');
+  const UserModeButtons = Array.from(document.querySelectorAll("[data-user-mode-button]"));
+  const UserModePanels = Array.from(document.querySelectorAll("[data-user-mode-panel]"));
+
+  if (!UserSidebar || !UserModeButtons.length || !UserModePanels.length) {
+    return;
+  }
+
+  function SetUserMode(UserMode) {
+    UserSidebar.classList.toggle("IsCreateUserMode", UserMode === "create");
+
+    UserModePanels.forEach(function (UserModePanel) {
+      const IsActiveUserMode = UserModePanel.dataset.userModePanel === UserMode;
+      UserModePanel.classList.toggle("IsActiveUserMode", IsActiveUserMode);
+      UserModePanel.hidden = !IsActiveUserMode;
+    });
+
+    UserModeButtons.forEach(function (UserModeButton) {
+      UserModeButton.classList.toggle("IsActive", UserModeButton.dataset.userModeButton === UserMode && UserMode === "create");
+    });
+  }
+
+  UserModeButtons.forEach(function (UserModeButton) {
+    UserModeButton.addEventListener("click", function () {
+      SetUserMode(UserModeButton.dataset.userModeButton);
+    });
+  });
+
+  SetUserMode(UserSidebar.dataset.initialUserMode || "list");
 })();
 
 (function () {

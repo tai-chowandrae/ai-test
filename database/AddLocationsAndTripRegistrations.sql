@@ -1,5 +1,6 @@
 CREATE TABLE locations (
   LocationId INT AUTO_INCREMENT PRIMARY KEY,
+  UserId INT NOT NULL,
   Name VARCHAR(150) NOT NULL,
   GooglePlaceId VARCHAR(255) NOT NULL,
   FormattedAddress VARCHAR(500) NOT NULL,
@@ -8,7 +9,8 @@ CREATE TABLE locations (
   Latitude DECIMAL(10, 7) NULL,
   Longitude DECIMAL(10, 7) NULL,
   CreatedAt DATETIME NOT NULL,
-  UNIQUE KEY UniqueLocationsGooglePlaceId (GooglePlaceId)
+  KEY ForeignLocationsUserId (UserId),
+  CONSTRAINT ForeignLocationsUserId FOREIGN KEY (UserId) REFERENCES users (UserId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE tripregistrations (

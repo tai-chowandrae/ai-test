@@ -5,12 +5,16 @@ CREATE TABLE users (
   EmailAddress VARCHAR(255) NOT NULL,
   PasswordHash VARCHAR(255) NOT NULL,
   IsAdmin TINYINT(1) NOT NULL DEFAULT 0,
+  IsActive TINYINT(1) NOT NULL DEFAULT 1,
+  IsCommuteCompensationEnabled TINYINT(1) NOT NULL DEFAULT 1,
+  CommuteCompensationKilometers DECIMAL(10, 2) NOT NULL DEFAULT 20.00,
   CreatedAt DATETIME NOT NULL,
   UNIQUE KEY UniqueUsersEmailAddress (EmailAddress)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE locations (
   LocationId INT AUTO_INCREMENT PRIMARY KEY,
+  UserId INT NOT NULL,
   Name VARCHAR(150) NOT NULL,
   GooglePlaceId VARCHAR(255) NOT NULL,
   FormattedAddress VARCHAR(500) NOT NULL,
@@ -19,7 +23,8 @@ CREATE TABLE locations (
   Latitude DECIMAL(10, 7) NULL,
   Longitude DECIMAL(10, 7) NULL,
   CreatedAt DATETIME NOT NULL,
-  UNIQUE KEY UniqueLocationsGooglePlaceId (GooglePlaceId)
+  KEY ForeignLocationsUserId (UserId),
+  CONSTRAINT ForeignLocationsUserId FOREIGN KEY (UserId) REFERENCES users (UserId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE tripregistrations (

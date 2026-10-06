@@ -33,12 +33,13 @@ function RedirectToLoginWithError(string $Message, string $EmailAddress = ''): v
     exit;
 }
 
-function RedirectToAdminWithMessage(string $Type, string $Message, string $AdminView = ''): void
+function RedirectToAdminWithMessage(string $Type, string $Message, string $AdminView = '', string $UserMode = ''): void
 {
     $_SESSION['AdminMessage'] = [
         'Type' => $Type,
         'Message' => $Message,
         'View' => $AdminView !== '' ? $AdminView : 'Welcome',
+        'UserMode' => $UserMode,
     ];
 
     $Location = $AdminView !== '' ? '/admin#Admin' . $AdminView : '/admin';
@@ -66,6 +67,17 @@ function RedirectToTripsWithMessage(string $Type, string $Message): void
     ];
 
     header('Location: /ritten', true, 302);
+    exit;
+}
+
+function RedirectToSettingsWithMessage(string $Type, string $Message): void
+{
+    $_SESSION['SettingsMessage'] = [
+        'Type' => $Type,
+        'Message' => $Message,
+    ];
+
+    header('Location: /settings', true, 302);
     exit;
 }
 
@@ -116,7 +128,7 @@ function HandleLoginRequest(): void
     try {
         $DatabaseConnection = GetDatabaseConnection();
         $UserStatement = $DatabaseConnection->prepare(
-            'SELECT UserId, FirstName, LastName, EmailAddress, PasswordHash, IsAdmin
+            'SELECT UserId, FirstName, LastName, EmailAddress, PasswordHash, IsAdmin, IsActive
              FROM users
              WHERE EmailAddress = :EmailAddress
              LIMIT 1'
@@ -125,7 +137,7 @@ function HandleLoginRequest(): void
 
         $User = $UserStatement->fetch();
 
-        if (!$User || !password_verify($Password, $User['PasswordHash'])) {
+        if (!$User || (int)$User['IsActive'] !== 1 || !password_verify($Password, $User['PasswordHash'])) {
             RedirectToLoginWithError('De combinatie van e-mailadres en wachtwoord is niet juist.', $EmailAddress);
         }
 
@@ -226,9 +238,254 @@ function HandleRegisterRequest(): void
     }
 }
 
-function HandleCreateLocationRequest(): void
+function HandleCreateAdminUserRequest(): void
 {
     RequireAdmin();
+
+    $FirstName = NormalizePostValue('FirstName');
+    $LastName = NormalizePostValue('LastName');
+    $EmailAddress = NormalizePostValue('EmailAddress');
+    $CopiedLocationIds = $_POST['CopiedLocationIds'] ?? [];
+
+    if ($FirstName === '' || $LastName === '' || $EmailAddress === '') {
+        RedirectToAdminWithMessage('Error', 'Voornaam, achternaam en e-mailadres zijn verplicht.', 'Users');
+    }
+
+    if (!filter_var($EmailAddress, FILTER_VALIDATE_EMAIL)) {
+        RedirectToAdminWithMessage('Error', 'Vul een geldig e-mailadres in.', 'Users');
+    }
+
+    if (!is_array($CopiedLocationIds)) {
+        $CopiedLocationIds = [];
+    }
+
+    $CopiedLocationIds = array_values(array_unique(array_filter(array_map('intval', $CopiedLocationIds), function (int $LocationId): bool {
+        return $LocationId > 0;
+    })));
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+        $ExistingUserStatement = $DatabaseConnection->prepare(
+            'SELECT UserId FROM users WHERE EmailAddress = :EmailAddress LIMIT 1'
+        );
+        $ExistingUserStatement->execute(['EmailAddress' => $EmailAddress]);
+
+        if ($ExistingUserStatement->fetch()) {
+            RedirectToAdminWithMessage('Error', 'Er bestaat al een gebruiker met dit e-mailadres.', 'Users');
+        }
+
+        $TemporaryPassword = bin2hex(random_bytes(6));
+        $DatabaseConnection->beginTransaction();
+
+        $CreateUserStatement = $DatabaseConnection->prepare(
+            'INSERT INTO users (FirstName, LastName, EmailAddress, PasswordHash, IsAdmin, IsActive, CreatedAt)
+             VALUES (:FirstName, :LastName, :EmailAddress, :PasswordHash, 0, 1, :CreatedAt)'
+        );
+        $CreateUserStatement->execute([
+            'FirstName' => $FirstName,
+            'LastName' => $LastName,
+            'EmailAddress' => $EmailAddress,
+            'PasswordHash' => password_hash($TemporaryPassword, PASSWORD_DEFAULT),
+            'CreatedAt' => date('Y-m-d H:i:s'),
+        ]);
+        $NewUserId = (int)$DatabaseConnection->lastInsertId();
+
+        if ($CopiedLocationIds) {
+            $LocationPlaceholders = [];
+            $CopyLocationParameters = [
+                'NewUserId' => $NewUserId,
+                'SourceUserId' => (int)$_SESSION['UserId'],
+                'CreatedAt' => date('Y-m-d H:i:s'),
+            ];
+
+            foreach ($CopiedLocationIds as $Index => $LocationId) {
+                $ParameterName = 'LocationId' . $Index;
+                $LocationPlaceholders[] = ':' . $ParameterName;
+                $CopyLocationParameters[$ParameterName] = $LocationId;
+            }
+
+            $CopyLocationsStatement = $DatabaseConnection->prepare(
+                'INSERT INTO locations (UserId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive, Latitude, Longitude, CreatedAt)
+                 SELECT :NewUserId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive, Latitude, Longitude, :CreatedAt
+                 FROM locations
+                 WHERE UserId = :SourceUserId
+                   AND IsActive = 1
+                   AND LocationId IN (' . implode(',', $LocationPlaceholders) . ')'
+            );
+            $CopyLocationsStatement->execute($CopyLocationParameters);
+        }
+
+        $DatabaseConnection->commit();
+
+        RedirectToAdminWithMessage(
+            'Success',
+            'Gebruiker is aangemaakt. Tijdelijk wachtwoord: ' . $TemporaryPassword,
+            'Users'
+        );
+    } catch (Throwable $Exception) {
+        if (isset($DatabaseConnection) && $DatabaseConnection->inTransaction()) {
+            $DatabaseConnection->rollBack();
+        }
+
+        RedirectToAdminWithMessage('Error', 'De gebruiker kon niet worden aangemaakt.', 'Users');
+    }
+}
+
+function HandleUpdateAdminUserRequest(): void
+{
+    RequireAdmin();
+
+    $UserId = (int)NormalizePostValue('UserId');
+    $FirstName = NormalizePostValue('FirstName');
+    $LastName = NormalizePostValue('LastName');
+    $EmailAddress = NormalizePostValue('EmailAddress');
+    $IsActive = NormalizePostValue('IsActive') === '1' ? 1 : 0;
+    $UserMode = 'edit-' . $UserId;
+
+    if ($UserId <= 0 || $FirstName === '' || $LastName === '' || $EmailAddress === '') {
+        RedirectToAdminWithMessage('Error', 'Voornaam, achternaam en e-mailadres zijn verplicht.', 'Users', $UserMode);
+    }
+
+    if (!filter_var($EmailAddress, FILTER_VALIDATE_EMAIL)) {
+        RedirectToAdminWithMessage('Error', 'Vul een geldig e-mailadres in.', 'Users', $UserMode);
+    }
+
+    if ($UserId === (int)$_SESSION['UserId'] && $IsActive !== 1) {
+        RedirectToAdminWithMessage('Error', 'Je kunt je eigen account niet deactiveren.', 'Users', $UserMode);
+    }
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+        $ExistingEmailStatement = $DatabaseConnection->prepare(
+            'SELECT UserId
+             FROM users
+             WHERE EmailAddress = :EmailAddress
+               AND UserId <> :UserId
+             LIMIT 1'
+        );
+        $ExistingEmailStatement->execute([
+            'EmailAddress' => $EmailAddress,
+            'UserId' => $UserId,
+        ]);
+
+        if ($ExistingEmailStatement->fetch()) {
+            RedirectToAdminWithMessage('Error', 'Er bestaat al een gebruiker met dit e-mailadres.', 'Users', $UserMode);
+        }
+
+        $UpdateUserStatement = $DatabaseConnection->prepare(
+            'UPDATE users
+             SET FirstName = :FirstName,
+                 LastName = :LastName,
+                 EmailAddress = :EmailAddress,
+                 IsActive = :IsActive
+             WHERE UserId = :UserId'
+        );
+        $UpdateUserStatement->execute([
+            'FirstName' => $FirstName,
+            'LastName' => $LastName,
+            'EmailAddress' => $EmailAddress,
+            'IsActive' => $IsActive,
+            'UserId' => $UserId,
+        ]);
+
+        if ($UpdateUserStatement->rowCount() === 0) {
+            $UserStatement = $DatabaseConnection->prepare('SELECT UserId FROM users WHERE UserId = :UserId LIMIT 1');
+            $UserStatement->execute(['UserId' => $UserId]);
+
+            if (!$UserStatement->fetch()) {
+                RedirectToAdminWithMessage('Error', 'Deze gebruiker bestaat niet.', 'Users', 'list');
+            }
+        }
+
+        if ($UserId === (int)$_SESSION['UserId']) {
+            $_SESSION['FirstName'] = $FirstName;
+            $_SESSION['LastName'] = $LastName;
+            $_SESSION['EmailAddress'] = $EmailAddress;
+        }
+
+        RedirectToAdminWithMessage('Success', 'Gebruiker is bijgewerkt.', 'Users', 'list');
+    } catch (PDOException $Exception) {
+        RedirectToAdminWithMessage('Error', 'De gebruiker kon niet worden bijgewerkt.', 'Users', $UserMode);
+    }
+}
+
+function HandleUpdateOwnUserRequest(): void
+{
+    RequireLogin();
+
+    $FirstName = NormalizePostValue('FirstName');
+    $LastName = NormalizePostValue('LastName');
+    $EmailAddress = NormalizePostValue('EmailAddress');
+    $IsCommuteCompensationEnabled = NormalizePostValue('IsCommuteCompensationEnabled') === '1' ? 1 : 0;
+    $CommuteCompensationKilometersValue = str_replace(',', '.', NormalizePostValue('CommuteCompensationKilometers'));
+
+    if ($FirstName === '' || $LastName === '' || $EmailAddress === '') {
+        RedirectToSettingsWithMessage('Error', 'Voornaam, achternaam en e-mailadres zijn verplicht.');
+    }
+
+    if (!filter_var($EmailAddress, FILTER_VALIDATE_EMAIL)) {
+        RedirectToSettingsWithMessage('Error', 'Vul een geldig e-mailadres in.');
+    }
+
+    if (!is_numeric($CommuteCompensationKilometersValue)) {
+        RedirectToSettingsWithMessage('Error', 'Vul een geldig aantal kilometers voor de woon-werkcompensatie in.');
+    }
+
+    $CommuteCompensationKilometers = round((float)$CommuteCompensationKilometersValue, 2);
+
+    if ($CommuteCompensationKilometers < 0 || $CommuteCompensationKilometers > 1000) {
+        RedirectToSettingsWithMessage('Error', 'De woon-werkcompensatie moet tussen 0 en 1000 kilometer liggen.');
+    }
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+        $ExistingEmailStatement = $DatabaseConnection->prepare(
+            'SELECT UserId
+             FROM users
+             WHERE EmailAddress = :EmailAddress
+               AND UserId <> :UserId
+             LIMIT 1'
+        );
+        $ExistingEmailStatement->execute([
+            'EmailAddress' => $EmailAddress,
+            'UserId' => (int)$_SESSION['UserId'],
+        ]);
+
+        if ($ExistingEmailStatement->fetch()) {
+            RedirectToSettingsWithMessage('Error', 'Er bestaat al een gebruiker met dit e-mailadres.');
+        }
+
+        $UpdateUserStatement = $DatabaseConnection->prepare(
+            'UPDATE users
+             SET FirstName = :FirstName,
+                 LastName = :LastName,
+                 EmailAddress = :EmailAddress,
+                 IsCommuteCompensationEnabled = :IsCommuteCompensationEnabled,
+                 CommuteCompensationKilometers = :CommuteCompensationKilometers
+             WHERE UserId = :UserId'
+        );
+        $UpdateUserStatement->execute([
+            'FirstName' => $FirstName,
+            'LastName' => $LastName,
+            'EmailAddress' => $EmailAddress,
+            'IsCommuteCompensationEnabled' => $IsCommuteCompensationEnabled,
+            'CommuteCompensationKilometers' => $CommuteCompensationKilometers,
+            'UserId' => (int)$_SESSION['UserId'],
+        ]);
+
+        $_SESSION['FirstName'] = $FirstName;
+        $_SESSION['LastName'] = $LastName;
+        $_SESSION['EmailAddress'] = $EmailAddress;
+
+        RedirectToSettingsWithMessage('Success', 'Je gegevens zijn bijgewerkt.');
+    } catch (PDOException $Exception) {
+        RedirectToSettingsWithMessage('Error', 'Je gegevens konden niet worden bijgewerkt.');
+    }
+}
+
+function HandleCreateLocationRequest(): void
+{
+    RequireLogin();
 
     $Name = NormalizePostValue('Name');
     $GooglePlaceId = NormalizePostValue('GooglePlaceId');
@@ -246,10 +503,11 @@ function HandleCreateLocationRequest(): void
         $CreatedAt = date('Y-m-d H:i:s');
 
         $CreateLocationStatement = $DatabaseConnection->prepare(
-            'INSERT INTO locations (Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, Latitude, Longitude, CreatedAt)
-             VALUES (:Name, :GooglePlaceId, :FormattedAddress, :DefaultTripDescription, :Latitude, :Longitude, :CreatedAt)'
+            'INSERT INTO locations (UserId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, Latitude, Longitude, CreatedAt)
+             VALUES (:UserId, :Name, :GooglePlaceId, :FormattedAddress, :DefaultTripDescription, :Latitude, :Longitude, :CreatedAt)'
         );
         $CreateLocationStatement->execute([
+            'UserId' => (int)$_SESSION['UserId'],
             'Name' => $Name,
             'GooglePlaceId' => $GooglePlaceId,
             'FormattedAddress' => $FormattedAddress,
@@ -261,13 +519,13 @@ function HandleCreateLocationRequest(): void
 
         RedirectToAdminWithMessage('Success', 'Locatie is opgeslagen.', 'Locations');
     } catch (PDOException $Exception) {
-        RedirectToAdminWithMessage('Error', 'De locatie kon niet worden opgeslagen. Mogelijk bestaat deze al.', 'Locations');
+        RedirectToAdminWithMessage('Error', 'De locatie kon niet worden opgeslagen.', 'Locations');
     }
 }
 
 function HandleUpdateLocationNameRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $LocationId = (int)NormalizePostValue('LocationId');
     $Name = NormalizePostValue('Name');
@@ -283,12 +541,14 @@ function HandleUpdateLocationNameRequest(): void
             'UPDATE locations
              SET Name = :Name,
                  DefaultTripDescription = :DefaultTripDescription
-             WHERE LocationId = :LocationId'
+             WHERE LocationId = :LocationId
+               AND UserId = :UserId'
         );
         $UpdateLocationStatement->execute([
             'Name' => $Name,
             'DefaultTripDescription' => $DefaultTripDescription !== '' ? $DefaultTripDescription : null,
             'LocationId' => $LocationId,
+            'UserId' => (int)$_SESSION['UserId'],
         ]);
 
         RedirectToAdminWithMessage('Success', 'Locatie is bijgewerkt.', 'Locations');
@@ -299,7 +559,7 @@ function HandleUpdateLocationNameRequest(): void
 
 function HandleUpdateLocationVisibilityRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $ActiveLocationIds = $_POST['ActiveLocationIds'] ?? [];
 
@@ -315,16 +575,20 @@ function HandleUpdateLocationVisibilityRequest(): void
         $DatabaseConnection = GetDatabaseConnection();
         $DatabaseConnection->beginTransaction();
 
-        $DatabaseConnection->exec('UPDATE locations SET IsActive = 0');
+        $DeactivateLocationsStatement = $DatabaseConnection->prepare(
+            'UPDATE locations SET IsActive = 0 WHERE UserId = :UserId'
+        );
+        $DeactivateLocationsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
 
         if ($ActiveLocationIds) {
             $Placeholders = implode(',', array_fill(0, count($ActiveLocationIds), '?'));
             $ActivateLocationsStatement = $DatabaseConnection->prepare(
                 'UPDATE locations
                  SET IsActive = 1
-                 WHERE LocationId IN (' . $Placeholders . ')'
+                 WHERE LocationId IN (' . $Placeholders . ')
+                   AND UserId = ?'
             );
-            $ActivateLocationsStatement->execute($ActiveLocationIds);
+            $ActivateLocationsStatement->execute(array_merge($ActiveLocationIds, [(int)$_SESSION['UserId']]));
         }
 
         $DatabaseConnection->commit();
@@ -341,7 +605,7 @@ function HandleUpdateLocationVisibilityRequest(): void
 
 function HandleDeleteLocationRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $LocationId = (int)NormalizePostValue('LocationId');
 
@@ -370,9 +634,14 @@ function HandleDeleteLocationRequest(): void
         }
 
         $DeleteLocationStatement = $DatabaseConnection->prepare(
-            'DELETE FROM locations WHERE LocationId = :LocationId'
+            'DELETE FROM locations
+             WHERE LocationId = :LocationId
+               AND UserId = :UserId'
         );
-        $DeleteLocationStatement->execute(['LocationId' => $LocationId]);
+        $DeleteLocationStatement->execute([
+            'LocationId' => $LocationId,
+            'UserId' => (int)$_SESSION['UserId'],
+        ]);
 
         RedirectToAdminWithMessage('Success', 'Locatie is verwijderd.', 'Locations');
     } catch (PDOException $Exception) {
@@ -380,15 +649,19 @@ function HandleDeleteLocationRequest(): void
     }
 }
 
-function GetLocationById(PDO $DatabaseConnection, int $LocationId): ?array
+function GetLocationById(PDO $DatabaseConnection, int $LocationId, int $UserId): ?array
 {
     $LocationStatement = $DatabaseConnection->prepare(
         'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive
          FROM locations
          WHERE LocationId = :LocationId
+           AND UserId = :UserId
          LIMIT 1'
     );
-    $LocationStatement->execute(['LocationId' => $LocationId]);
+    $LocationStatement->execute([
+        'LocationId' => $LocationId,
+        'UserId' => $UserId,
+    ]);
     $Location = $LocationStatement->fetch();
 
     return $Location ?: null;
@@ -401,6 +674,23 @@ function IsLocationSelectableForTrip(?array $Location, ?int $ExistingLocationId 
     }
 
     return (int)$Location['IsActive'] === 1 || ($ExistingLocationId !== null && (int)$Location['LocationId'] === $ExistingLocationId);
+}
+
+function GetUserCommuteCompensationSettings(PDO $DatabaseConnection, int $UserId): array
+{
+    $SettingsStatement = $DatabaseConnection->prepare(
+        'SELECT IsCommuteCompensationEnabled, CommuteCompensationKilometers
+         FROM users
+         WHERE UserId = :UserId
+         LIMIT 1'
+    );
+    $SettingsStatement->execute(['UserId' => $UserId]);
+    $Settings = $SettingsStatement->fetch();
+
+    return [
+        'Enabled' => $Settings && (int)$Settings['IsCommuteCompensationEnabled'] === 1,
+        'Kilometers' => $Settings ? max(0.0, (float)$Settings['CommuteCompensationKilometers']) : 20.0,
+    ];
 }
 
 function BuildRoutesWaypoint(array $Location): array
@@ -489,7 +779,7 @@ function ExecuteJsonGetRequest(string $Url, array $Headers): array
 
 function HandleSearchLocationsRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $Query = NormalizePostValue('Query');
 
@@ -541,7 +831,7 @@ function HandleSearchLocationsRequest(): void
 
 function HandleGetLocationDetailsRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $GooglePlaceId = NormalizePostValue('GooglePlaceId');
 
@@ -616,9 +906,7 @@ function ComputeDrivingDistanceMeters(array $StartLocation, array $EndLocation):
     return (int)$ResponseData['routes'][0]['distanceMeters'];
 }
 
-const CommuteCompensationDeductionMeters = 20000;
-
-function CalculateStoredTripDistanceMeters(array $StartLocation, array $EndLocation, int $IsRoundTrip, int $ApplyCommuteCompensation): int
+function CalculateStoredTripDistanceMeters(array $StartLocation, array $EndLocation, int $IsRoundTrip, int $ApplyCommuteCompensation, int $CommuteCompensationMeters): int
 {
     $DistanceMeters = ComputeDrivingDistanceMeters($StartLocation, $EndLocation);
 
@@ -628,7 +916,7 @@ function CalculateStoredTripDistanceMeters(array $StartLocation, array $EndLocat
     }
 
     if ($ApplyCommuteCompensation === 1) {
-        $DistanceMeters = max(0, $DistanceMeters - CommuteCompensationDeductionMeters);
+        $DistanceMeters = max(0, $DistanceMeters - $CommuteCompensationMeters);
     }
 
     return $DistanceMeters;
@@ -660,8 +948,8 @@ function HandleCreateTripRegistrationRequest(): void
 
     try {
         $DatabaseConnection = GetDatabaseConnection();
-        $StartLocation = GetLocationById($DatabaseConnection, $StartLocationId);
-        $EndLocation = GetLocationById($DatabaseConnection, $EndLocationId);
+        $StartLocation = GetLocationById($DatabaseConnection, $StartLocationId, (int)$_SESSION['UserId']);
+        $EndLocation = GetLocationById($DatabaseConnection, $EndLocationId, (int)$_SESSION['UserId']);
 
         if (!$StartLocation || !$EndLocation) {
             RedirectToDashboardWithMessage('Error', 'Een van de gekozen locaties bestaat niet.');
@@ -671,7 +959,10 @@ function HandleCreateTripRegistrationRequest(): void
             RedirectToDashboardWithMessage('Error', 'Een van de gekozen locaties is niet actief.');
         }
 
-        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation);
+        $CommuteSettings = GetUserCommuteCompensationSettings($DatabaseConnection, (int)$_SESSION['UserId']);
+        $ApplyCommuteCompensation = $CommuteSettings['Enabled'] ? $ApplyCommuteCompensation : 0;
+        $CommuteCompensationMeters = (int)round($CommuteSettings['Kilometers'] * 1000);
+        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation, $CommuteCompensationMeters);
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
         $CreatedAt = date('Y-m-d H:i:s');
 
@@ -744,8 +1035,8 @@ function HandleUpdateTripRegistrationRequest(): void
             RedirectToTripsWithMessage('Error', 'Deze rit bestaat niet of hoort niet bij jouw account.');
         }
 
-        $StartLocation = GetLocationById($DatabaseConnection, $StartLocationId);
-        $EndLocation = GetLocationById($DatabaseConnection, $EndLocationId);
+        $StartLocation = GetLocationById($DatabaseConnection, $StartLocationId, (int)$_SESSION['UserId']);
+        $EndLocation = GetLocationById($DatabaseConnection, $EndLocationId, (int)$_SESSION['UserId']);
 
         if (!$StartLocation || !$EndLocation) {
             RedirectToTripsWithMessage('Error', 'Een van de gekozen locaties bestaat niet.');
@@ -755,7 +1046,10 @@ function HandleUpdateTripRegistrationRequest(): void
             RedirectToTripsWithMessage('Error', 'Een van de gekozen locaties is niet actief.');
         }
 
-        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation);
+        $CommuteSettings = GetUserCommuteCompensationSettings($DatabaseConnection, (int)$_SESSION['UserId']);
+        $ApplyCommuteCompensation = $CommuteSettings['Enabled'] ? $ApplyCommuteCompensation : 0;
+        $CommuteCompensationMeters = (int)round($CommuteSettings['Kilometers'] * 1000);
+        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation, $CommuteCompensationMeters);
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
 
         $UpdateTripStatement = $DatabaseConnection->prepare(
@@ -838,11 +1132,13 @@ function HandleLoadTripRegistrationsRequest(): void
     try {
         $DatabaseConnection = GetDatabaseConnection();
 
-        $LocationsStatement = $DatabaseConnection->query(
+        $LocationsStatement = $DatabaseConnection->prepare(
             'SELECT LocationId, Name, DefaultTripDescription, IsActive
              FROM locations
+             WHERE UserId = :UserId
              ORDER BY Name ASC'
         );
+        $LocationsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
         $Locations = $LocationsStatement->fetchAll();
 
         $TripsStatement = $DatabaseConnection->prepare(
@@ -866,10 +1162,11 @@ function HandleLoadTripRegistrationsRequest(): void
         $TripRegistrations = $TripsStatement->fetchAll();
         $HasMoreTrips = count($TripRegistrations) > $Limit;
         $TripRegistrations = array_slice($TripRegistrations, 0, $Limit);
+        $CommuteSettings = GetUserCommuteCompensationSettings($DatabaseConnection, (int)$_SESSION['UserId']);
 
         SendJsonResponse([
             'Ok' => true,
-            'Html' => RenderTripOverviewGroups($TripRegistrations, $Locations),
+            'Html' => RenderTripOverviewGroups($TripRegistrations, $Locations, $CommuteSettings['Enabled'], $CommuteSettings['Kilometers']),
             'Count' => count($TripRegistrations),
             'NextOffset' => $Offset + count($TripRegistrations),
             'HasMore' => $HasMoreTrips,
@@ -884,7 +1181,7 @@ function HandleLoadTripRegistrationsRequest(): void
 
 function HandleUpdateAdminTripRegistrationRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $TripRegistrationId = (int)NormalizePostValue('TripRegistrationId');
     $TripDate = NormalizePostValue('TripDate');
@@ -914,18 +1211,22 @@ function HandleUpdateAdminTripRegistrationRequest(): void
             'SELECT TripRegistrationId, StartLocationId, EndLocationId
              FROM tripregistrations TripRegistrations
              WHERE TripRegistrationId = :TripRegistrationId
+               AND UserId = :UserId
              LIMIT 1'
         );
-        $ExistingTripStatement->execute(['TripRegistrationId' => $TripRegistrationId]);
+        $ExistingTripStatement->execute([
+            'TripRegistrationId' => $TripRegistrationId,
+            'UserId' => (int)$_SESSION['UserId'],
+        ]);
 
         $ExistingTrip = $ExistingTripStatement->fetch();
 
         if (!$ExistingTrip) {
-            RedirectToAdminWithMessage('Error', 'Deze rit bestaat niet.', 'Trips');
+            RedirectToAdminWithMessage('Error', 'Deze rit bestaat niet of hoort niet bij jouw account.', 'Trips');
         }
 
-        $StartLocation = GetLocationById($DatabaseConnection, $StartLocationId);
-        $EndLocation = GetLocationById($DatabaseConnection, $EndLocationId);
+        $StartLocation = GetLocationById($DatabaseConnection, $StartLocationId, (int)$_SESSION['UserId']);
+        $EndLocation = GetLocationById($DatabaseConnection, $EndLocationId, (int)$_SESSION['UserId']);
 
         if (!$StartLocation || !$EndLocation) {
             RedirectToAdminWithMessage('Error', 'Een van de gekozen locaties bestaat niet.', 'Trips');
@@ -935,7 +1236,10 @@ function HandleUpdateAdminTripRegistrationRequest(): void
             RedirectToAdminWithMessage('Error', 'Een van de gekozen locaties is niet actief.', 'Trips');
         }
 
-        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation);
+        $CommuteSettings = GetUserCommuteCompensationSettings($DatabaseConnection, (int)$_SESSION['UserId']);
+        $ApplyCommuteCompensation = $CommuteSettings['Enabled'] ? $ApplyCommuteCompensation : 0;
+        $CommuteCompensationMeters = (int)round($CommuteSettings['Kilometers'] * 1000);
+        $DistanceMeters = CalculateStoredTripDistanceMeters($StartLocation, $EndLocation, $IsRoundTrip, $ApplyCommuteCompensation, $CommuteCompensationMeters);
         $DistanceKilometers = round($DistanceMeters / 1000, 2);
 
         $UpdateTripStatement = $DatabaseConnection->prepare(
@@ -948,7 +1252,8 @@ function HandleUpdateAdminTripRegistrationRequest(): void
                  TripDescription = :TripDescription,
                  DistanceMeters = :DistanceMeters,
                  DistanceKilometers = :DistanceKilometers
-             WHERE TripRegistrationId = :TripRegistrationId'
+             WHERE TripRegistrationId = :TripRegistrationId
+               AND UserId = :UserId'
         );
         $UpdateTripStatement->execute([
             'TripDate' => $TripDate,
@@ -960,6 +1265,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
             'DistanceMeters' => $DistanceMeters,
             'DistanceKilometers' => $DistanceKilometers,
             'TripRegistrationId' => $TripRegistrationId,
+            'UserId' => (int)$_SESSION['UserId'],
         ]);
 
         RedirectToAdminWithMessage('Success', 'Rit is bijgewerkt met ' . number_format($DistanceKilometers, 2, ',', '.') . ' km.', 'Trips');
@@ -970,7 +1276,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
 
 function HandleDeleteAdminTripRegistrationRequest(): void
 {
-    RequireAdmin();
+    RequireLogin();
 
     $TripRegistrationId = (int)NormalizePostValue('TripRegistrationId');
 
@@ -982,12 +1288,16 @@ function HandleDeleteAdminTripRegistrationRequest(): void
         $DatabaseConnection = GetDatabaseConnection();
         $DeleteTripStatement = $DatabaseConnection->prepare(
             'DELETE FROM tripregistrations
-             WHERE TripRegistrationId = :TripRegistrationId'
+             WHERE TripRegistrationId = :TripRegistrationId
+               AND UserId = :UserId'
         );
-        $DeleteTripStatement->execute(['TripRegistrationId' => $TripRegistrationId]);
+        $DeleteTripStatement->execute([
+            'TripRegistrationId' => $TripRegistrationId,
+            'UserId' => (int)$_SESSION['UserId'],
+        ]);
 
         if ($DeleteTripStatement->rowCount() === 0) {
-            RedirectToAdminWithMessage('Error', 'Deze rit bestaat niet.', 'Trips');
+            RedirectToAdminWithMessage('Error', 'Deze rit bestaat niet of hoort niet bij jouw account.', 'Trips');
         }
 
         RedirectToAdminWithMessage('Success', 'Rit is verwijderd.', 'Trips');
@@ -1014,6 +1324,18 @@ if ($Action === 'Logout') {
 
 if ($Action === 'Register') {
     HandleRegisterRequest();
+}
+
+if ($Action === 'CreateAdminUser') {
+    HandleCreateAdminUserRequest();
+}
+
+if ($Action === 'UpdateAdminUser') {
+    HandleUpdateAdminUserRequest();
+}
+
+if ($Action === 'UpdateOwnUser') {
+    HandleUpdateOwnUserRequest();
 }
 
 if ($Action === 'SearchLocations') {

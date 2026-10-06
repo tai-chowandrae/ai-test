@@ -102,6 +102,10 @@ textarea {
   color: var(--DangerColor);
 }
 
+.UserCreateButton {
+  width: 100%;
+}
+
 .AdminBody {
   display: flex;
   height: calc(100vh - 52px);
@@ -231,6 +235,10 @@ textarea {
   width: 8px;
 }
 
+.SidebarDot.IsInactive {
+  background: var(--MutedColor);
+}
+
 .SidebarCard strong {
   display: block;
   font-family: "Barlow Condensed", Arial, sans-serif;
@@ -283,6 +291,14 @@ textarea {
 
 .AdminViewSection.IsActive {
   display: block;
+}
+
+[data-user-mode-panel]:not(.IsActiveUserMode) {
+  display: none !important;
+}
+
+.SubSidebar.IsCreateUserMode [data-user-list-sidebar] {
+  display: none !important;
 }
 
 .SubSidebar.AdminViewSection.IsActive {
@@ -528,6 +544,10 @@ textarea {
   grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr) auto;
 }
 
+.AdminForm.UserCreateForm {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+}
+
 .ExportForm,
 .PeriodFilterForm {
   align-items: end;
@@ -598,6 +618,41 @@ textarea {
 
 .AdminFormWide {
   grid-column: 1 / 3;
+}
+
+.AdminFormFull {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 801px) and (min-height: 700px) {
+  [data-user-mode-panel="create"].AdminViewSection.IsActive {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  [data-user-mode-panel="create"] .UserCreateForm {
+    flex: 1;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 0;
+  }
+
+  [data-user-mode-panel="create"] .LocationDualList {
+    min-height: 0;
+  }
+
+  [data-user-mode-panel="create"] .LocationDualColumn {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  [data-user-mode-panel="create"] .LocationDualListBox {
+    flex: 1;
+    max-height: none;
+    min-height: 0;
+  }
 }
 
 .FormHint {
@@ -1214,6 +1269,10 @@ textarea {
   }
 
   .AdminForm {
+    grid-template-columns: 1fr;
+  }
+
+  .AdminForm.UserCreateForm {
     grid-template-columns: 1fr;
   }
 

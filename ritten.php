@@ -38,11 +38,12 @@ function FormatDistance(float $Value): string
 }
 
 $FirstName = (string)($_SESSION['FirstName'] ?? '');
-$IsAdmin = !empty($_SESSION['IsAdmin']);
 $TripRegistrations = [];
 $Locations = [];
 $TripPageSize = 20;
 $HasMoreTrips = false;
+$IsCommuteCompensationEnabled = false;
+$CommuteCompensationKilometers = 20.0;
 $TripTotals = [
     'PreviousMonth' => 0.0,
     'CurrentMonth' => 0.0,
@@ -56,12 +57,28 @@ unset($_SESSION['TripsMessage']);
 try {
     $DatabaseConnection = GetDatabaseConnection();
 
-    $LocationsStatement = $DatabaseConnection->query(
+    $LocationsStatement = $DatabaseConnection->prepare(
         'SELECT LocationId, Name, DefaultTripDescription, IsActive
          FROM locations
+         WHERE UserId = :UserId
          ORDER BY Name ASC'
     );
+    $LocationsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
     $Locations = $LocationsStatement->fetchAll();
+
+    $UserSettingsStatement = $DatabaseConnection->prepare(
+        'SELECT IsCommuteCompensationEnabled, CommuteCompensationKilometers
+         FROM users
+         WHERE UserId = :UserId
+         LIMIT 1'
+    );
+    $UserSettingsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
+    $UserSettings = $UserSettingsStatement->fetch();
+
+    if ($UserSettings) {
+        $IsCommuteCompensationEnabled = (int)$UserSettings['IsCommuteCompensationEnabled'] === 1;
+        $CommuteCompensationKilometers = (float)$UserSettings['CommuteCompensationKilometers'];
+    }
 
     $CurrentMonth = date('Y-m');
     $PreviousMonth = date('Y-m', strtotime('first day of previous month'));
@@ -147,9 +164,8 @@ try {
         <nav class="DashboardMenuList" aria-label="Dashboard menu">
           <a href="/dashboard">Dashboard</a>
           <a href="/ritten">Ritten overzicht</a>
-          <?php if ($IsAdmin): ?>
-            <a href="/admin">Admin openen</a>
-          <?php endif; ?>
+          <a href="/settings">Settings</a>
+          <a href="/admin">Beheer openen</a>
           <form action="/api/index.php" method="post">
             <input type="hidden" name="Action" value="Logout">
             <button type="submit">Uitloggen</button>
@@ -195,7 +211,7 @@ try {
           aria-label="Ritten overzicht"
         >
           <?php if ($TripRegistrations): ?>
-            <?= RenderTripOverviewGroups($TripRegistrations, $Locations) ?>
+            <?= RenderTripOverviewGroups($TripRegistrations, $Locations, $IsCommuteCompensationEnabled, $CommuteCompensationKilometers) ?>
           <?php else: ?>
             <article class="ActionRow">
               <span class="ActionIcon">R</span>

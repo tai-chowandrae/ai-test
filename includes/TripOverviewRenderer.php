@@ -27,7 +27,7 @@ function FormatTripOverviewDistance(float $Value): string
     return number_format($Value, 2, ',', '.');
 }
 
-function RenderTripOverviewGroups(array $TripRegistrations, array $Locations): string
+function RenderTripOverviewGroups(array $TripRegistrations, array $Locations, bool $IsCommuteCompensationEnabled = true, float $CommuteCompensationKilometers = 20.0): string
 {
     $GroupedTripRegistrations = [];
 
@@ -50,7 +50,7 @@ function RenderTripOverviewGroups(array $TripRegistrations, array $Locations): s
             <span><?= EscapeTripOverviewValue(FormatTripOverviewDistance($DayTotal)) ?> km</span>
           </header>
           <?php foreach ($TripsForDate as $TripRegistration): ?>
-            <?= RenderTripOverviewRegistration($TripRegistration, $Locations) ?>
+            <?= RenderTripOverviewRegistration($TripRegistration, $Locations, $IsCommuteCompensationEnabled, $CommuteCompensationKilometers) ?>
           <?php endforeach; ?>
         </article>
         <?php
@@ -59,7 +59,7 @@ function RenderTripOverviewGroups(array $TripRegistrations, array $Locations): s
     return (string)ob_get_clean();
 }
 
-function RenderTripOverviewRegistration(array $TripRegistration, array $Locations): string
+function RenderTripOverviewRegistration(array $TripRegistration, array $Locations, bool $IsCommuteCompensationEnabled, float $CommuteCompensationKilometers): string
 {
     ob_start();
     ?>
@@ -118,10 +118,12 @@ function RenderTripOverviewRegistration(array $TripRegistration, array $Location
           <span>Heen en weer</span>
         </label>
 
-        <label class="CheckboxLabel">
-          <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
-          <span>Woon-werkcompensatie (-20 km)</span>
-        </label>
+        <?php if ($IsCommuteCompensationEnabled): ?>
+          <label class="CheckboxLabel">
+            <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
+            <span>Woon-werkcompensatie (-<?= EscapeTripOverviewValue(number_format($CommuteCompensationKilometers, 2, ',', '.')) ?> km)</span>
+          </label>
+        <?php endif; ?>
 
         <div class="TripEditActions">
           <button class="PrimaryDashboardButton" type="submit">Opslaan</button>

@@ -15,23 +15,40 @@ function EscapeValue(string $Value): string
 }
 
 $FirstName = (string)($_SESSION['FirstName'] ?? '');
-$IsAdmin = !empty($_SESSION['IsAdmin']);
 $DashboardMessage = $_SESSION['DashboardMessage'] ?? null;
 $Locations = [];
 $DashboardError = '';
+$IsCommuteCompensationEnabled = false;
+$CommuteCompensationKilometers = 20.0;
 
 unset($_SESSION['DashboardMessage']);
 
 try {
     $DatabaseConnection = GetDatabaseConnection();
 
-    $LocationsStatement = $DatabaseConnection->query(
+    $LocationsStatement = $DatabaseConnection->prepare(
         'SELECT LocationId, Name, FormattedAddress, DefaultTripDescription
          FROM locations
-         WHERE IsActive = 1
+         WHERE UserId = :UserId
+           AND IsActive = 1
          ORDER BY Name ASC'
     );
+    $LocationsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
     $Locations = $LocationsStatement->fetchAll();
+
+    $UserSettingsStatement = $DatabaseConnection->prepare(
+        'SELECT IsCommuteCompensationEnabled, CommuteCompensationKilometers
+         FROM users
+         WHERE UserId = :UserId
+         LIMIT 1'
+    );
+    $UserSettingsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
+    $UserSettings = $UserSettingsStatement->fetch();
+
+    if ($UserSettings) {
+        $IsCommuteCompensationEnabled = (int)$UserSettings['IsCommuteCompensationEnabled'] === 1;
+        $CommuteCompensationKilometers = (float)$UserSettings['CommuteCompensationKilometers'];
+    }
 
 } catch (PDOException $Exception) {
     $DashboardError = 'Dashboardgegevens konden niet worden geladen.';
@@ -70,9 +87,8 @@ try {
         <nav class="DashboardMenuList" aria-label="Dashboard menu">
           <a href="/dashboard">Dashboard</a>
           <a href="/ritten">Ritten overzicht</a>
-          <?php if ($IsAdmin): ?>
-            <a href="/admin">Admin openen</a>
-          <?php endif; ?>
+          <a href="/settings">Settings</a>
+          <a href="/admin">Beheer openen</a>
           <form action="/api/index.php" method="post">
             <input type="hidden" name="Action" value="Logout">
             <button type="submit">Uitloggen</button>
@@ -132,10 +148,12 @@ try {
               <span>Heen en weer</span>
             </label>
 
-            <label class="CheckboxLabel">
-              <input name="ApplyCommuteCompensation" type="checkbox" value="1">
-              <span>Woon-werkcompensatie (-20 km)</span>
-            </label>
+            <?php if ($IsCommuteCompensationEnabled): ?>
+              <label class="CheckboxLabel">
+                <input name="ApplyCommuteCompensation" type="checkbox" value="1">
+                <span>Woon-werkcompensatie (-<?= EscapeValue(number_format($CommuteCompensationKilometers, 2, ',', '.')) ?> km)</span>
+              </label>
+            <?php endif; ?>
 
             <button class="PrimaryDashboardButton" type="submit">Rit opslaan</button>
           </form>

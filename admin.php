@@ -10,11 +10,6 @@ if (empty($_SESSION['UserId'])) {
     exit;
 }
 
-if (empty($_SESSION['IsAdmin'])) {
-    header('Location: /dashboard', true, 302);
-    exit;
-}
-
 function EscapeValue(string $Value): string
 {
     return htmlspecialchars($Value, ENT_QUOTES, 'UTF-8');
@@ -90,6 +85,7 @@ function NormalizeExportCell(?string $Value): string
 }
 
 $Users = [];
+$IsAdmin = !empty($_SESSION['IsAdmin']);
 $Locations = [];
 $TripRegistrations = [];
 $GroupedTripRegistrations = [];
@@ -100,8 +96,14 @@ $AllTripCount = 0;
 $AllTripKilometers = 0.0;
 $MonthlyTripTotals = [];
 $AdminError = '';
+$IsCommuteCompensationEnabled = false;
+$CommuteCompensationKilometers = 20.0;
 $AdminMessage = $_SESSION['AdminMessage'] ?? null;
 $AdminMessageView = is_array($AdminMessage) ? (string)($AdminMessage['View'] ?? 'Welcome') : 'Welcome';
+$StoredAdminUserMode = is_array($AdminMessage) ? (string)($AdminMessage['UserMode'] ?? '') : '';
+$AdminUserMode = is_array($AdminMessage) && $AdminMessageView === 'Users'
+    ? ($StoredAdminUserMode !== '' ? $StoredAdminUserMode : (($AdminMessage['Type'] ?? '') === 'Error' ? 'create' : 'list'))
+    : 'list';
 $ExportStartDate = (string)($_GET['ExportStartDate'] ?? date('Y-m-01'));
 $ExportEndDate = (string)($_GET['ExportEndDate'] ?? date('Y-m-d'));
 $HasSubmittedTripFilter = array_key_exists('TripStartDate', $_GET) || array_key_exists('TripEndDate', $_GET);
@@ -132,40 +134,62 @@ unset($_SESSION['AdminMessage']);
 
 try {
     $DatabaseConnection = GetDatabaseConnection();
-    $UsersStatement = $DatabaseConnection->query(
-        'SELECT UserId, FirstName, LastName, EmailAddress, IsAdmin, CreatedAt
-         FROM users
-         ORDER BY CreatedAt DESC, UserId DESC'
-    );
-    $Users = $UsersStatement->fetchAll();
+    if ($IsAdmin) {
+        $UsersStatement = $DatabaseConnection->query(
+            'SELECT UserId, FirstName, LastName, EmailAddress, IsAdmin, IsActive, CreatedAt
+             FROM users
+             ORDER BY FirstName ASC, LastName ASC, UserId ASC'
+        );
+        $Users = $UsersStatement->fetchAll();
+    }
 
-    $LocationsStatement = $DatabaseConnection->query(
+    $LocationsStatement = $DatabaseConnection->prepare(
         'SELECT LocationId, Name, GooglePlaceId, FormattedAddress, DefaultTripDescription, IsActive, CreatedAt
          FROM locations
+         WHERE UserId = :UserId
          ORDER BY Name ASC'
     );
+    $LocationsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
     $Locations = $LocationsStatement->fetchAll();
 
-    $TripTotalsStatement = $DatabaseConnection->query(
-        'SELECT COUNT(*) AS TripCount, COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
-         FROM tripregistrations TripRegistrations'
+    $UserSettingsStatement = $DatabaseConnection->prepare(
+        'SELECT IsCommuteCompensationEnabled, CommuteCompensationKilometers
+         FROM users
+         WHERE UserId = :UserId
+         LIMIT 1'
     );
+    $UserSettingsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
+    $UserSettings = $UserSettingsStatement->fetch();
+
+    if ($UserSettings) {
+        $IsCommuteCompensationEnabled = (int)$UserSettings['IsCommuteCompensationEnabled'] === 1;
+        $CommuteCompensationKilometers = (float)$UserSettings['CommuteCompensationKilometers'];
+    }
+
+    $TripTotalsStatement = $DatabaseConnection->prepare(
+        'SELECT COUNT(*) AS TripCount, COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
+         FROM tripregistrations TripRegistrations
+         WHERE UserId = :UserId'
+    );
+    $TripTotalsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
     $TripTotals = $TripTotalsStatement->fetch();
     $AllTripCount = (int)($TripTotals['TripCount'] ?? 0);
     $AllTripKilometers = (float)($TripTotals['TotalKilometers'] ?? 0);
 
-    $MonthlyTripTotalsStatement = $DatabaseConnection->query(
+    $MonthlyTripTotalsStatement = $DatabaseConnection->prepare(
         'SELECT DATE_FORMAT(TripDate, "%Y-%m") AS TripMonth,
                 COUNT(*) AS TripCount,
                 COALESCE(SUM(DistanceKilometers), 0) AS TotalKilometers
          FROM tripregistrations TripRegistrations
+         WHERE UserId = :UserId
          GROUP BY DATE_FORMAT(TripDate, "%Y-%m")
          ORDER BY TripMonth DESC'
     );
+    $MonthlyTripTotalsStatement->execute(['UserId' => (int)$_SESSION['UserId']]);
     $MonthlyTripTotals = $MonthlyTripTotalsStatement->fetchAll();
 
-    $TripFilterConditions = [];
-    $TripFilterParameters = [];
+    $TripFilterConditions = ['TripRegistrations.UserId = :CurrentUserId'];
+    $TripFilterParameters = ['CurrentUserId' => (int)$_SESSION['UserId']];
 
     if ($TripFilterStartDate !== '') {
         $TripFilterConditions[] = 'TripRegistrations.TripDate >= :TripFilterStartDate';
@@ -233,12 +257,14 @@ try {
          FROM tripregistrations TripRegistrations
          INNER JOIN locations StartLocations ON StartLocations.LocationId = TripRegistrations.StartLocationId
          INNER JOIN locations EndLocations ON EndLocations.LocationId = TripRegistrations.EndLocationId
-         WHERE TripRegistrations.TripDate BETWEEN :ExportStartDate AND :ExportEndDate
+         WHERE TripRegistrations.UserId = :UserId
+           AND TripRegistrations.TripDate BETWEEN :ExportStartDate AND :ExportEndDate
          ORDER BY TripRegistrations.TripDate ASC, TripRegistrations.TripRegistrationId ASC'
     );
     $ExportStatement->execute([
         'ExportStartDate' => $ExportStartDate,
         'ExportEndDate' => $ExportEndDate,
+        'UserId' => (int)$_SESSION['UserId'],
     ]);
     $ExportRows = $ExportStatement->fetchAll();
 
@@ -281,6 +307,7 @@ $LocationCount = count($Locations);
       <a class="AdminLogo" href="/admin">KM<span>2</span>WORK <small>Beheer</small></a>
       <div class="TopbarRight">
         <a class="TopbarButton" href="/dashboard">Dashboard</a>
+        <a class="TopbarButton" href="/settings">Settings</a>
         <form action="/api/index.php" method="post">
           <input type="hidden" name="Action" value="Logout">
           <button class="TopbarButton IsDanger" type="submit">Uitloggen</button>
@@ -290,10 +317,12 @@ $LocationCount = count($Locations);
 
     <div class="AdminBody">
       <nav class="IconSidebar" aria-label="Admin hoofdmenu">
-        <button class="SidebarIconButton" type="button" title="Gebruikers" data-admin-view="Users">
-          <span class="IconGlyph">U</span>
-          <span class="IconLabel">Users</span>
-        </button>
+        <?php if ($IsAdmin): ?>
+          <button class="SidebarIconButton" type="button" title="Gebruikers" data-admin-view="Users">
+            <span class="IconGlyph">U</span>
+            <span class="IconLabel">Users</span>
+          </button>
+        <?php endif; ?>
         <button class="SidebarIconButton" type="button" title="Locaties" data-admin-view="Locations">
           <span class="IconGlyph">L</span>
           <span class="IconLabel">Locaties</span>
@@ -308,22 +337,24 @@ $LocationCount = count($Locations);
         </button>
       </nav>
 
-      <aside class="SubSidebar AdminViewSection" data-admin-section="Users" aria-label="Gebruikers">
-        <div class="SectionLabel">Gebruikers</div>
-        <input class="SidebarSearch" id="UserSearch" type="search" placeholder="Naam of e-mail zoeken..." autocomplete="off" data-filter-input="Users">
+      <?php if ($IsAdmin): ?>
+        <aside class="SubSidebar AdminViewSection" data-admin-section="Users" data-initial-user-mode="<?= EscapeValue($AdminUserMode) ?>" aria-label="Gebruikers">
+        <button class="SmallActionButton IsOutline UserCreateButton" type="button" data-user-mode-button="create">Gebruiker toevoegen</button>
+        <div class="SectionLabel" data-user-list-sidebar>Gebruikers</div>
+        <input class="SidebarSearch" id="UserSearch" type="search" placeholder="Naam of e-mail zoeken..." autocomplete="off" data-filter-input="Users" data-user-list-sidebar>
 
-        <div class="SidebarList" id="SidebarUserList">
+        <div class="SidebarList" id="SidebarUserList" data-user-list-sidebar>
           <?php if ($Users): ?>
             <?php foreach ($Users as $User): ?>
               <?php
                 $FullName = trim((string)$User['FirstName'] . ' ' . (string)$User['LastName']);
                 $SearchValue = strtolower($FullName . ' ' . (string)$User['EmailAddress']);
               ?>
-              <button class="SidebarCard" type="button" data-filter-item="Users" data-search-value="<?= EscapeValue($SearchValue) ?>">
-                <span class="SidebarDot"></span>
+              <button class="SidebarCard" type="button" data-filter-item="Users" data-search-value="<?= EscapeValue($SearchValue) ?>" data-user-mode-button="edit-<?= (int)$User['UserId'] ?>">
+                <span class="SidebarDot<?= (int)$User['IsActive'] === 1 ? '' : ' IsInactive' ?>"></span>
                 <span>
                   <strong><?= EscapeValue($FullName) ?></strong>
-                  <small><?= EscapeValue((string)$User['EmailAddress']) ?><?= (int)$User['IsAdmin'] === 1 ? ' - Admin' : '' ?></small>
+                  <small><?= EscapeValue((string)$User['EmailAddress']) ?><?= (int)$User['IsAdmin'] === 1 ? ' - Admin' : '' ?><?= (int)$User['IsActive'] === 1 ? '' : ' - Inactief' ?></small>
                 </span>
               </button>
             <?php endforeach; ?>
@@ -331,7 +362,8 @@ $LocationCount = count($Locations);
             <div class="SidebarEmpty">Geen gebruikers</div>
           <?php endif; ?>
         </div>
-      </aside>
+        </aside>
+      <?php endif; ?>
 
       <aside class="SubSidebar AdminViewSection" data-admin-section="Locations" aria-label="Locaties">
         <div class="SectionLabel">Locaties</div>
@@ -388,13 +420,15 @@ $LocationCount = count($Locations);
             <div>
               <p class="SectionLabel">Beheersomgeving</p>
               <h1 id="AdminTitle">Welkom<?= $FullName !== '' ? ', ' . EscapeValue($FullName) : '' ?></h1>
-              <p>Kies links wat je wilt beheren: gebruikers, locaties of export.</p>
+              <p>Kies links wat je wilt beheren: <?= $IsAdmin ? 'gebruikers, ' : '' ?>locaties, ritten of export.</p>
             </div>
             <div class="LiveBadge"><span></span>Live</div>
           </div>
 
           <div class="Chips">
-            <span class="Chip"><strong><?= $UserCount ?></strong> accounts</span>
+            <?php if ($IsAdmin): ?>
+              <span class="Chip"><strong><?= $UserCount ?></strong> accounts</span>
+            <?php endif; ?>
             <span class="Chip"><strong><?= $LocationCount ?></strong> locaties</span>
             <span class="Chip"><strong><?= $AllTripCount ?></strong> ritten</span>
             <span class="Chip"><strong><?= EscapeValue(FormatExportDistance($AllTripKilometers)) ?></strong> km totaal</span>
@@ -426,7 +460,7 @@ $LocationCount = count($Locations);
         </section>
 
         <?php if (is_array($AdminMessage)): ?>
-          <section class="AlertCard AdminViewSection <?= $AdminMessage['Type'] === 'Success' ? 'IsSuccess' : '' ?>" data-admin-section="<?= EscapeValue($AdminMessageView) ?>" data-auto-dismiss role="alert">
+          <section class="AlertCard AdminViewSection <?= $AdminMessage['Type'] === 'Success' ? 'IsSuccess' : '' ?>" data-admin-section="<?= EscapeValue($AdminMessageView) ?>"<?= $AdminMessageView === 'Users' ? '' : ' data-auto-dismiss' ?> role="alert">
             <?= EscapeValue((string)$AdminMessage['Message']) ?>
           </section>
         <?php endif; ?>
@@ -604,7 +638,66 @@ $LocationCount = count($Locations);
           </form>
         </section>
 
-        <section class="ContentPanel AdminViewSection" data-admin-section="Users">
+        <?php if ($IsAdmin): ?>
+          <section class="ContentPanel AdminViewSection<?= $AdminUserMode === 'create' ? ' IsActiveUserMode' : '' ?>" data-admin-section="Users" data-user-mode-panel="create"<?= $AdminUserMode === 'create' ? '' : ' hidden' ?>>
+            <div class="PanelTitle">
+              <span>Gebruiker toevoegen</span>
+              <button class="SmallActionButton IsOutline" type="button" data-user-mode-button="list">Terug naar gebruikers</button>
+            </div>
+
+            <form class="AdminForm UserCreateForm" action="/api/index.php" method="post">
+              <input type="hidden" name="Action" value="CreateAdminUser">
+
+              <label>
+                <span class="FormLabel">Voornaam</span>
+                <input class="FormInput" name="FirstName" type="text" required>
+              </label>
+              <label>
+                <span class="FormLabel">Achternaam</span>
+                <input class="FormInput" name="LastName" type="text" required>
+              </label>
+              <label>
+                <span class="FormLabel">E-mailadres</span>
+                <input class="FormInput" name="EmailAddress" type="email" required>
+              </label>
+
+              <div class="LocationDualList AdminFormFull" data-location-enable-list="selected">
+                <section class="LocationDualColumn" aria-label="Beschikbare locaties">
+                  <header>
+                    <strong>Locaties van admin</strong>
+                    <small>Selecteer locaties om te kopiëren</small>
+                  </header>
+                  <div class="LocationDualListBox" data-location-list="available">
+                    <?php foreach ($Locations as $Location): ?>
+                      <?php if ((int)$Location['IsActive'] !== 1) { continue; } ?>
+                      <button class="LocationDualItem" type="button" data-location-option>
+                        <input type="hidden" name="CopiedLocationIds[]" value="<?= (int)$Location['LocationId'] ?>" disabled>
+                        <span><?= EscapeValue((string)$Location['Name']) ?></span>
+                        <small><?= EscapeValue((string)$Location['FormattedAddress']) ?></small>
+                      </button>
+                    <?php endforeach; ?>
+                  </div>
+                </section>
+
+                <div class="LocationDualActions" aria-label="Locaties selecteren">
+                  <button class="SmallActionButton IsOutline" type="button" data-location-move="selected">Naar rechts</button>
+                  <button class="SmallActionButton IsOutline" type="button" data-location-move="available">Naar links</button>
+                </div>
+
+                <section class="LocationDualColumn" aria-label="Te kopiëren locaties">
+                  <header>
+                    <strong>Naar nieuwe gebruiker</strong>
+                    <small>Deze locaties worden gekopieerd</small>
+                  </header>
+                  <div class="LocationDualListBox" data-location-list="selected"></div>
+                </section>
+              </div>
+
+              <button class="PrimaryAdminButton" type="submit">Gebruiker aanmaken</button>
+            </form>
+          </section>
+
+          <section class="ContentPanel AdminViewSection<?= $AdminUserMode === 'list' ? ' IsActiveUserMode' : '' ?>" data-admin-section="Users" data-user-mode-panel="list"<?= $AdminUserMode === 'list' ? '' : ' hidden' ?>>
           <div class="PanelTitle">
             <span>Gebruikerslijst</span>
             <small><?= $UserCount ?> totaal</small>
@@ -619,12 +712,14 @@ $LocationCount = count($Locations);
                   $SearchValue = strtolower($FullName . ' ' . (string)$User['EmailAddress']);
                 ?>
                 <article class="RowCard UserRow" data-filter-item="Users" data-search-value="<?= EscapeValue($SearchValue) ?>">
-                  <span class="UserAvatar"><?= EscapeValue($Initials ?: '?') ?></span>
+                  <span class="UserAvatar<?= (int)$User['IsActive'] === 1 ? '' : ' IsInactive' ?>"><?= EscapeValue($Initials ?: '?') ?></span>
                   <div class="RowBody">
                     <strong><?= EscapeValue($FullName) ?></strong>
                     <small><?= EscapeValue((string)$User['EmailAddress']) ?></small>
                   </div>
                   <span class="RoleBadge<?= (int)$User['IsAdmin'] === 1 ? ' IsAdmin' : '' ?>"><?= (int)$User['IsAdmin'] === 1 ? 'Admin' : 'Gebruiker' ?></span>
+                  <span class="RoleBadge<?= (int)$User['IsActive'] === 1 ? ' IsAdmin' : '' ?>"><?= (int)$User['IsActive'] === 1 ? 'Actief' : 'Inactief' ?></span>
+                  <button class="SmallActionButton IsOutline" type="button" data-user-mode-button="edit-<?= (int)$User['UserId'] ?>">Bewerken</button>
                   <span class="RowMeta">User #<?= (int)$User['UserId'] ?></span>
                   <span class="RowMeta"><?= EscapeValue(FormatDateTimeValue((string)$User['CreatedAt'])) ?></span>
                 </article>
@@ -633,7 +728,50 @@ $LocationCount = count($Locations);
               <div class="InnerEmpty">Nog geen gebruikers gevonden.</div>
             <?php endif; ?>
           </div>
-        </section>
+          </section>
+
+          <?php foreach ($Users as $User): ?>
+            <?php $EditUserMode = 'edit-' . (int)$User['UserId']; ?>
+            <section class="ContentPanel AdminViewSection<?= $AdminUserMode === $EditUserMode ? ' IsActiveUserMode' : '' ?>" data-admin-section="Users" data-user-mode-panel="<?= EscapeValue($EditUserMode) ?>"<?= $AdminUserMode === $EditUserMode ? '' : ' hidden' ?>>
+              <div class="PanelTitle">
+                <span>Gebruiker bewerken</span>
+                <button class="SmallActionButton IsOutline" type="button" data-user-mode-button="list">Terug naar gebruikers</button>
+              </div>
+
+              <form class="AdminForm UserCreateForm" action="/api/index.php" method="post">
+                <input type="hidden" name="Action" value="UpdateAdminUser">
+                <input type="hidden" name="UserId" value="<?= (int)$User['UserId'] ?>">
+
+                <label>
+                  <span class="FormLabel">Voornaam</span>
+                  <input class="FormInput" name="FirstName" type="text" value="<?= EscapeValue((string)$User['FirstName']) ?>" required>
+                </label>
+                <label>
+                  <span class="FormLabel">Achternaam</span>
+                  <input class="FormInput" name="LastName" type="text" value="<?= EscapeValue((string)$User['LastName']) ?>" required>
+                </label>
+                <label>
+                  <span class="FormLabel">E-mailadres</span>
+                  <input class="FormInput" name="EmailAddress" type="email" value="<?= EscapeValue((string)$User['EmailAddress']) ?>" required>
+                </label>
+
+                <label class="AdminCheckboxLabel AdminFormFull">
+                  <?php if ((int)$User['UserId'] === (int)$_SESSION['UserId']): ?>
+                    <input type="hidden" name="IsActive" value="1">
+                    <input type="checkbox" checked disabled>
+                    <span>Actief — je kunt je eigen account niet deactiveren</span>
+                  <?php else: ?>
+                    <input type="hidden" name="IsActive" value="0">
+                    <input type="checkbox" name="IsActive" value="1"<?= (int)$User['IsActive'] === 1 ? ' checked' : '' ?>>
+                    <span>Gebruiker kan inloggen</span>
+                  <?php endif; ?>
+                </label>
+
+                <button class="PrimaryAdminButton" type="submit">Wijzigingen opslaan</button>
+              </form>
+            </section>
+          <?php endforeach; ?>
+        <?php endif; ?>
 
         <section class="ContentPanel AdminViewSection" data-admin-section="Trips">
           <div class="PanelTitle">
@@ -703,7 +841,7 @@ $LocationCount = count($Locations);
                         <div class="TripAdminActions">
                           <span class="RoleBadge DistanceBadge"><?= EscapeValue(FormatExportDistance((float)$TripRegistration['DistanceKilometers'])) ?> km</span>
                           <span class="RoleBadge ReturnBadge<?= (int)$TripRegistration['IsRoundTrip'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['IsRoundTrip'] === 1 ? 'Retour' : '' ?></span>
-                          <span class="RoleBadge CommuteBadge<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '-20 km' : '' ?></span>
+                          <span class="RoleBadge CommuteBadge<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '-' . EscapeValue(number_format($CommuteCompensationKilometers, 2, ',', '.')) . ' km' : '' ?></span>
                           <button class="SmallActionButton IsOutline AdminTripEditToggle" type="button" aria-expanded="false">Bewerken</button>
                           <form class="AdminTripDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze rit wilt verwijderen?">
                             <input type="hidden" name="Action" value="DeleteAdminTripRegistration">
@@ -758,10 +896,12 @@ $LocationCount = count($Locations);
                             <span>Heen en weer</span>
                           </label>
 
-                          <label class="AdminCheckboxLabel">
-                            <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
-                            <span>Woon-werkcompensatie (-20 km)</span>
-                          </label>
+                          <?php if ($IsCommuteCompensationEnabled): ?>
+                            <label class="AdminCheckboxLabel">
+                              <input name="ApplyCommuteCompensation" type="checkbox" value="1"<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? ' checked' : '' ?>>
+                              <span>Woon-werkcompensatie (-<?= EscapeValue(number_format($CommuteCompensationKilometers, 2, ',', '.')) ?> km)</span>
+                            </label>
+                          <?php endif; ?>
 
                           <button class="SmallActionButton" type="submit">Opslaan</button>
                         </form>

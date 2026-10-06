@@ -1,0 +1,5 @@
+ALTER TABLE users
+  ADD COLUMN IsActive TINYINT(1) NOT NULL DEFAULT 1 AFTER IsAdmin;
+
+UPDATE users
+SET IsActive = 1;
