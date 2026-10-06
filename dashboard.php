@@ -87,7 +87,6 @@ try {
         <nav class="DashboardMenuList" aria-label="Dashboard menu">
           <a href="/dashboard">Dashboard</a>
           <a href="/ritten">Ritten overzicht</a>
-          <a href="/settings">Settings</a>
           <a href="/admin">Beheer openen</a>
           <form action="/api/index.php" method="post">
             <input type="hidden" name="Action" value="Logout">
