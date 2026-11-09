@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 require_once __DIR__ . '/config/Database.php';
 require_once __DIR__ . '/config/GoogleMaps.php';
@@ -8,6 +8,11 @@ require_once __DIR__ . '/config/GoogleMaps.php';
 if (empty($_SESSION['UserId'])) {
     header('Location: /login', true, 302);
     exit;
+}
+
+// Protect user deletion against requests originating outside this admin session.
+if (empty($_SESSION['DeleteUserToken'])) {
+    $_SESSION['DeleteUserToken'] = bin2hex(random_bytes(32));
 }
 
 function EscapeValue(string $Value): string
@@ -97,7 +102,7 @@ $AllTripKilometers = 0.0;
 $MonthlyTripTotals = [];
 $AdminError = '';
 $IsCommuteCompensationEnabled = false;
-$CommuteCompensationKilometers = 20.0;
+$CommuteCompensationKilometers = 0.0;
 $AdminMessage = $_SESSION['AdminMessage'] ?? null;
 $AdminMessageView = is_array($AdminMessage) ? (string)($AdminMessage['View'] ?? 'Welcome') : 'Welcome';
 $StoredAdminUserMode = is_array($AdminMessage) ? (string)($AdminMessage['UserMode'] ?? '') : '';
@@ -299,7 +304,8 @@ $LocationCount = count($Locations);
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css">
+  <!-- Refresh cached styles whenever the stylesheet changes. -->
+  <link rel="stylesheet" href="css/admin.css?v=<?= (int)filemtime(__DIR__ . '/css/admin.css') ?>">
 </head>
 <body>
   <div class="AdminShell">
@@ -309,6 +315,7 @@ $LocationCount = count($Locations);
         <a class="TopbarButton" href="/dashboard">Dashboard</a>
         <a class="TopbarButton" href="/settings">Settings</a>
         <form action="/api/index.php" method="post">
+          <?= CsrfField() ?>
           <input type="hidden" name="Action" value="Logout">
           <button class="TopbarButton IsDanger" type="submit">Uitloggen</button>
         </form>
@@ -502,6 +509,7 @@ $LocationCount = count($Locations);
           <?php endif; ?>
 
           <form class="AdminForm" id="LocationForm" action="/api/index.php" method="post">
+            <?= CsrfField() ?>
             <input type="hidden" name="Action" value="CreateLocation">
             <input type="hidden" id="GooglePlaceId" name="GooglePlaceId">
             <input type="hidden" id="FormattedAddress" name="FormattedAddress">
@@ -551,6 +559,7 @@ $LocationCount = count($Locations);
                 </div>
                 <div class="RowActions">
                   <form class="InlineEditForm" action="/api/index.php" method="post">
+                    <?= CsrfField() ?>
                     <input type="hidden" name="Action" value="UpdateLocationName">
                     <input type="hidden" name="LocationId" value="<?= (int)$Location['LocationId'] ?>">
                     <textarea class="InlineEditTextarea IsNameTextarea" name="Name" rows="2" required><?= EscapeValue((string)$Location['Name']) ?></textarea>
@@ -558,6 +567,7 @@ $LocationCount = count($Locations);
                     <button class="SmallActionButton IsOutline" type="submit">Opslaan</button>
                   </form>
                   <form class="LocationDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze locatie wilt verwijderen?">
+                    <?= CsrfField() ?>
                     <input type="hidden" name="Action" value="DeleteLocation">
                     <input type="hidden" name="LocationId" value="<?= (int)$Location['LocationId'] ?>">
                     <button class="SmallActionButton IsOutline IconActionButton" type="submit" aria-label="Locatie verwijderen" title="Locatie verwijderen">
@@ -581,6 +591,7 @@ $LocationCount = count($Locations);
           </div>
 
           <form class="LocationVisibilityForm" action="/api/index.php" method="post">
+            <?= CsrfField() ?>
             <input type="hidden" name="Action" value="UpdateLocationVisibility">
 
             <div class="LocationDualList">
@@ -646,6 +657,7 @@ $LocationCount = count($Locations);
             </div>
 
             <form class="AdminForm UserCreateForm" action="/api/index.php" method="post">
+              <?= CsrfField() ?>
               <input type="hidden" name="Action" value="CreateAdminUser">
 
               <label>
@@ -739,6 +751,7 @@ $LocationCount = count($Locations);
               </div>
 
               <form class="AdminForm UserCreateForm" action="/api/index.php" method="post">
+                <?= CsrfField() ?>
                 <input type="hidden" name="Action" value="UpdateAdminUser">
                 <input type="hidden" name="UserId" value="<?= (int)$User['UserId'] ?>">
 
@@ -767,8 +780,21 @@ $LocationCount = count($Locations);
                   <?php endif; ?>
                 </label>
 
-                <button class="PrimaryAdminButton" type="submit">Wijzigingen opslaan</button>
+                <div class="AdminFormFull UserEditActions">
+                  <button class="PrimaryAdminButton" type="submit">Wijzigingen opslaan</button>
+                  <?php if ((int)$User['UserId'] !== (int)$_SESSION['UserId']): ?>
+                    <button class="PrimaryAdminButton IsDanger" type="submit" form="DeleteUserForm-<?= (int)$User['UserId'] ?>">Gebruiker verwijderen</button>
+                  <?php endif; ?>
+                </div>
               </form>
+              <?php if ((int)$User['UserId'] !== (int)$_SESSION['UserId']): ?>
+                <form id="DeleteUserForm-<?= (int)$User['UserId'] ?>" action="/api/index.php" method="post" data-confirm="<?= EscapeValue('Wil je ' . trim((string)$User['FirstName'] . ' ' . (string)$User['LastName']) . ' definitief verwijderen? Ook alle ritten en locaties van deze gebruiker worden verwijderd. Dit kan niet ongedaan worden gemaakt.') ?>">
+                  <?= CsrfField() ?>
+                  <input type="hidden" name="Action" value="DeleteAdminUser">
+                  <input type="hidden" name="UserId" value="<?= (int)$User['UserId'] ?>">
+                  <input type="hidden" name="DeleteUserToken" value="<?= EscapeValue((string)$_SESSION['DeleteUserToken']) ?>">
+                </form>
+              <?php endif; ?>
             </section>
           <?php endforeach; ?>
         <?php endif; ?>
@@ -844,6 +870,7 @@ $LocationCount = count($Locations);
                           <span class="RoleBadge CommuteBadge<?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '' : ' IsEmpty' ?>"><?= (int)$TripRegistration['ApplyCommuteCompensation'] === 1 ? '-' . EscapeValue(number_format($CommuteCompensationKilometers, 2, ',', '.')) . ' km' : '' ?></span>
                           <button class="SmallActionButton IsOutline AdminTripEditToggle" type="button" aria-expanded="false">Bewerken</button>
                           <form class="AdminTripDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze rit wilt verwijderen?">
+                            <?= CsrfField() ?>
                             <input type="hidden" name="Action" value="DeleteAdminTripRegistration">
                             <input type="hidden" name="TripRegistrationId" value="<?= (int)$TripRegistration['TripRegistrationId'] ?>">
                             <button class="SmallActionButton IsOutline IconActionButton" type="submit" aria-label="Rit verwijderen" title="Rit verwijderen">
@@ -856,6 +883,7 @@ $LocationCount = count($Locations);
                       </article>
                       <div class="AdminTripEditPanel">
                         <form class="AdminTripEditForm" action="/api/index.php" method="post">
+                          <?= CsrfField() ?>
                           <input type="hidden" name="Action" value="UpdateAdminTripRegistration">
                           <input type="hidden" name="TripRegistrationId" value="<?= (int)$TripRegistration['TripRegistrationId'] ?>">
 
@@ -938,6 +966,6 @@ $LocationCount = count($Locations);
       </div>
     </section>
   </div>
-  <script src="js/admin.js" defer></script>
+  <script src="js/admin.js?v=<?= (int)filemtime(__DIR__ . '/js/admin.js') ?>" defer></script>
 </body>
 </html>

@@ -44,6 +44,12 @@
       return;
     }
 
+    if (RequiredFields[2].value.trim().split("@")[1].toLowerCase() !== "vonknh.nl") {
+      Event.preventDefault();
+      ShowRegisterModal("Je kunt je alleen met een bedrijfsaccount aanmelden.");
+      return;
+    }
+
     if (RequiredFields[3].value.length < 8) {
       Event.preventDefault();
       ShowRegisterModal("Het wachtwoord moet minimaal 8 tekens bevatten.");

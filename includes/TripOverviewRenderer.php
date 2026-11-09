@@ -78,6 +78,7 @@ function RenderTripOverviewRegistration(array $TripRegistration, array $Location
     <details class="TripEditDetails">
       <summary>Bewerken</summary>
       <form class="TripForm TripEditForm" action="/api/index.php" method="post">
+        <?= CsrfField() ?>
         <input type="hidden" name="Action" value="UpdateTripRegistration">
         <input type="hidden" name="TripRegistrationId" value="<?= (int)$TripRegistration['TripRegistrationId'] ?>">
 
@@ -130,6 +131,7 @@ function RenderTripOverviewRegistration(array $TripRegistration, array $Location
         </div>
       </form>
       <form class="TripDeleteForm" action="/api/index.php" method="post" data-confirm="Weet je zeker dat je deze rit wilt verwijderen?">
+        <?= CsrfField() ?>
         <input type="hidden" name="Action" value="DeleteTripRegistration">
         <input type="hidden" name="TripRegistrationId" value="<?= (int)$TripRegistration['TripRegistrationId'] ?>">
         <button class="DangerDashboardButton" type="submit">Verwijderen</button>

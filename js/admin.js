@@ -321,6 +321,7 @@
   async function PostApi(Action, Data) {
     const Body = new URLSearchParams();
     Body.set("Action", Action);
+    Body.set("CsrfToken", document.querySelector('[name="CsrfToken"]').value);
 
     Object.keys(Data).forEach(function (Key) {
       Body.set(Key, Data[Key]);

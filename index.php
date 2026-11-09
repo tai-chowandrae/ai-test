@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 if (empty($_SESSION['UserId'])) {
     header('Location: /login', true, 302);

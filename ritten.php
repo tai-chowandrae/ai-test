@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 require_once __DIR__ . '/config/Database.php';
 require_once __DIR__ . '/includes/TripOverviewRenderer.php';
@@ -167,6 +167,7 @@ try {
           <a href="/settings">Settings</a>
           <a href="/admin">Beheer openen</a>
           <form action="/api/index.php" method="post">
+            <?= CsrfField() ?>
             <input type="hidden" name="Action" value="Logout">
             <button type="submit">Uitloggen</button>
           </form>

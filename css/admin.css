@@ -724,6 +724,20 @@ textarea {
   white-space: nowrap;
 }
 
+.UserEditActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.UserEditActions .PrimaryAdminButton {
+  flex: 0 1 306px;
+}
+
+.PrimaryAdminButton.IsDanger {
+  background: var(--DangerColor);
+}
+
 .ContentPanel {
   padding: 16px;
 }

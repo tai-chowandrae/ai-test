@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 require_once __DIR__ . '/config/Database.php';
 
@@ -19,7 +19,7 @@ $DashboardMessage = $_SESSION['DashboardMessage'] ?? null;
 $Locations = [];
 $DashboardError = '';
 $IsCommuteCompensationEnabled = false;
-$CommuteCompensationKilometers = 20.0;
+$CommuteCompensationKilometers = 0.0;
 
 unset($_SESSION['DashboardMessage']);
 
@@ -89,6 +89,7 @@ try {
           <a href="/ritten">Ritten overzicht</a>
           <a href="/admin">Beheer openen</a>
           <form action="/api/index.php" method="post">
+            <?= CsrfField() ?>
             <input type="hidden" name="Action" value="Logout">
             <button type="submit">Uitloggen</button>
           </form>
@@ -110,6 +111,7 @@ try {
         <section class="DashboardPanel">
           <p class="DashboardKicker">Rittenregistratie</p>
           <form class="TripForm" action="/api/index.php" method="post">
+            <?= CsrfField() ?>
             <input type="hidden" name="Action" value="CreateTripRegistration">
 
             <label>
@@ -160,6 +162,6 @@ try {
       </div>
     </section>
   </main>
-  <script src="js/dashboard.js" defer></script>
+  <script src="js/dashboard.js?v=<?= (int)filemtime(__DIR__ . '/js/dashboard.js') ?>" defer></script>
 </body>
 </html>

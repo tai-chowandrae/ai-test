@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 require_once __DIR__ . '/config/Database.php';
 
@@ -60,6 +60,7 @@ try {
       <div class="TopbarRight">
         <a class="TopbarButton" href="/dashboard">Dashboard</a>
         <form action="/api/index.php" method="post">
+          <?= CsrfField() ?>
           <input type="hidden" name="Action" value="Logout">
           <button class="TopbarButton IsDanger" type="submit">Uitloggen</button>
         </form>
@@ -85,6 +86,7 @@ try {
             </div>
 
             <form class="AdminForm UserCreateForm" action="/api/index.php" method="post">
+              <?= CsrfField() ?>
               <input type="hidden" name="Action" value="UpdateOwnUser">
 
               <label>

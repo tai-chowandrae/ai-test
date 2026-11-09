@@ -11,6 +11,17 @@
 | API | REST API through `api/index.php` |
 | Frontend | Vanilla JavaScript, no frameworks |
 
+## Security
+
+- Public hosts redirect HTTP to HTTPS. Install a valid TLS certificate before deployment; localhost, 127.0.0.1 and ::1 remain available over HTTP.
+- Session cookies use HttpOnly and SameSite=Lax, plus Secure on HTTPS. HTTPS responses enable HSTS. TLS detection uses the web server's HTTPS variable; configure trusted TLS termination at the host if using a reverse proxy.
+- Every authenticated request checks the account's current active status and admin role. Deleted or inactive accounts lose access on their next request. Already displayed pages cannot be remotely erased.
+- All POST API actions require a session CSRF token. Forms and JavaScript requests supply it automatically.
+- Login allows 20 submissions per IP and 10 per email in 15 minutes; registration allows 5 per IP and 3 per email. Limits apply across browser sessions, including successful submissions, and reset after the window expires. Client-supplied forwarding headers are not trusted.
+- PHP must be able to create and write `storage/auth-attempts`. Counters use hashed keys and file locking; no database migration is needed. Do not publish runtime counter files. Old counters may be removed during maintenance when more than a day old.
+- Apache denies direct access to internal directories, dotfiles, backups and the database test page. Keep the directory `.htaccess` files deployed and allow Apache overrides.
+- Run `php tests/security.php` against the local Apache site at `http://localhost` with the local database configured. Requires PHP curl. The test creates and removes a disposable user and checks rate limits, expiry, CSRF, protected files and session revocation.
+
 ## Local Database Defaults
 
 | Setting | Value |

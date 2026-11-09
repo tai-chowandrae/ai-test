@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/Security.php';
 
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../config/GoogleMaps.php';
@@ -200,6 +200,11 @@ function HandleRegisterRequest(): void
         RedirectToRegisterWithError('Vul een geldig e-mailadres in.', $OldInput);
     }
 
+    // Enforce the company domain server-side, including requests without JavaScript.
+    if (strtolower(substr($EmailAddress, strrpos($EmailAddress, '@') + 1)) !== 'vonknh.nl') {
+        RedirectToRegisterWithError('Je kunt je alleen met een bedrijfsaccount aanmelden.', $OldInput);
+    }
+
     if (strlen($Password) < 8) {
         RedirectToRegisterWithError('Het wachtwoord moet minimaal 8 tekens bevatten.', $OldInput);
     }
@@ -221,8 +226,8 @@ function HandleRegisterRequest(): void
         $CreatedAt = date('Y-m-d H:i:s');
 
         $CreateUserStatement = $DatabaseConnection->prepare(
-            'INSERT INTO users (FirstName, LastName, EmailAddress, PasswordHash, CreatedAt)
-             VALUES (:FirstName, :LastName, :EmailAddress, :PasswordHash, :CreatedAt)'
+            'INSERT INTO users (FirstName, LastName, EmailAddress, PasswordHash, CommuteCompensationKilometers, CreatedAt)
+             VALUES (:FirstName, :LastName, :EmailAddress, :PasswordHash, 0, :CreatedAt)'
         );
         $CreateUserStatement->execute([
             'FirstName' => $FirstName,
@@ -278,8 +283,8 @@ function HandleCreateAdminUserRequest(): void
         $DatabaseConnection->beginTransaction();
 
         $CreateUserStatement = $DatabaseConnection->prepare(
-            'INSERT INTO users (FirstName, LastName, EmailAddress, PasswordHash, IsAdmin, IsActive, CreatedAt)
-             VALUES (:FirstName, :LastName, :EmailAddress, :PasswordHash, 0, 1, :CreatedAt)'
+            'INSERT INTO users (FirstName, LastName, EmailAddress, PasswordHash, IsAdmin, IsActive, CommuteCompensationKilometers, CreatedAt)
+             VALUES (:FirstName, :LastName, :EmailAddress, :PasswordHash, 0, 1, 0, :CreatedAt)'
         );
         $CreateUserStatement->execute([
             'FirstName' => $FirstName,
@@ -406,6 +411,53 @@ function HandleUpdateAdminUserRequest(): void
         RedirectToAdminWithMessage('Success', 'Gebruiker is bijgewerkt.', 'Users', 'list');
     } catch (PDOException $Exception) {
         RedirectToAdminWithMessage('Error', 'De gebruiker kon niet worden bijgewerkt.', 'Users', $UserMode);
+    }
+}
+
+function HandleDeleteAdminUserRequest(): void
+{
+    RequireAdmin();
+
+    $UserId = (int)NormalizePostValue('UserId');
+    $Token = (string)($_SESSION['DeleteUserToken'] ?? '');
+
+    if ($Token === '' || !hash_equals($Token, NormalizePostValue('DeleteUserToken'))) {
+        RedirectToAdminWithMessage('Error', 'De aanvraag is verlopen. Vernieuw de pagina en probeer het opnieuw.', 'Users', 'list');
+    }
+
+    if ($UserId <= 0) {
+        RedirectToAdminWithMessage('Error', 'Deze gebruiker bestaat niet.', 'Users', 'list');
+    }
+
+    if ($UserId === (int)$_SESSION['UserId']) {
+        RedirectToAdminWithMessage('Error', 'Je kunt je eigen account niet verwijderen.', 'Users', 'list');
+    }
+
+    try {
+        $DatabaseConnection = GetDatabaseConnection();
+        $DatabaseConnection->beginTransaction();
+        $UserStatement = $DatabaseConnection->prepare('SELECT UserId FROM users WHERE UserId = :UserId FOR UPDATE');
+        $UserStatement->execute(['UserId' => $UserId]);
+
+        if (!$UserStatement->fetch()) {
+            $DatabaseConnection->rollBack();
+            RedirectToAdminWithMessage('Error', 'Deze gebruiker bestaat niet.', 'Users', 'list');
+        }
+
+        // Delete dependent records first; roll back everything if any deletion fails.
+        foreach (['tripregistrations', 'locations', 'users'] as $TableName) {
+            $DeleteStatement = $DatabaseConnection->prepare('DELETE FROM ' . $TableName . ' WHERE UserId = :UserId');
+            $DeleteStatement->execute(['UserId' => $UserId]);
+        }
+
+        $DatabaseConnection->commit();
+        RedirectToAdminWithMessage('Success', 'Gebruiker en bijbehorende ritten en locaties zijn verwijderd.', 'Users', 'list');
+    } catch (PDOException $Exception) {
+        if (isset($DatabaseConnection) && $DatabaseConnection->inTransaction()) {
+            $DatabaseConnection->rollBack();
+        }
+
+        RedirectToAdminWithMessage('Error', 'De gebruiker kon niet worden verwijderd. Er zijn geen gegevens verwijderd.', 'Users', 'list');
     }
 }
 
@@ -689,7 +741,7 @@ function GetUserCommuteCompensationSettings(PDO $DatabaseConnection, int $UserId
 
     return [
         'Enabled' => $Settings && (int)$Settings['IsCommuteCompensationEnabled'] === 1,
-        'Kilometers' => $Settings ? max(0.0, (float)$Settings['CommuteCompensationKilometers']) : 20.0,
+        'Kilometers' => $Settings ? max(0.0, (float)$Settings['CommuteCompensationKilometers']) : 0.0,
     ];
 }
 
@@ -1314,6 +1366,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $Action = NormalizePostValue('Action');
 
+ValidateCsrfToken();
+
+if ($Action === 'Login' || $Action === 'Register') {
+    LimitAuthAttempts($Action);
+}
+
 if ($Action === 'Login') {
     HandleLoginRequest();
 }
@@ -1332,6 +1390,10 @@ if ($Action === 'CreateAdminUser') {
 
 if ($Action === 'UpdateAdminUser') {
     HandleUpdateAdminUserRequest();
+}
+
+if ($Action === 'DeleteAdminUser') {
+    HandleDeleteAdminUserRequest();
 }
 
 if ($Action === 'UpdateOwnUser') {

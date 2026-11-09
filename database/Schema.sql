@@ -7,7 +7,7 @@ CREATE TABLE users (
   IsAdmin TINYINT(1) NOT NULL DEFAULT 0,
   IsActive TINYINT(1) NOT NULL DEFAULT 1,
   IsCommuteCompensationEnabled TINYINT(1) NOT NULL DEFAULT 1,
-  CommuteCompensationKilometers DECIMAL(10, 2) NOT NULL DEFAULT 20.00,
+  CommuteCompensationKilometers DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   CreatedAt DATETIME NOT NULL,
   UNIQUE KEY UniqueUsersEmailAddress (EmailAddress)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

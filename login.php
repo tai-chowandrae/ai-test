@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 $LoginSuccess = (string)($_SESSION['LoginSuccess'] ?? '');
 $LoginError = (string)($_SESSION['LoginError'] ?? '');
@@ -42,6 +42,7 @@ function EscapeValue(string $Value): string
         </div>
 
         <form class="LoginForm" id="LoginForm" action="/api/index.php" method="post" novalidate>
+          <?= CsrfField() ?>
           <input type="hidden" name="Action" value="Login">
 
           <div class="LoginAlert<?= $LoginError !== '' ? ' IsVisible' : '' ?>" id="LoginAlert" role="alert" aria-live="polite"><?= EscapeValue($LoginError) ?></div>

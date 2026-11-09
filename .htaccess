@@ -1,5 +1,19 @@
 RewriteEngine On
 DirectoryIndex index.php
+Options -Indexes
+
+# Keep internal code, backups, test utilities and security state private.
+RewriteRule (^|/)\. - [F,L]
+RewriteRule ^(?:database|config|includes|storage)(?:/|$) - [F,L,NC]
+RewriteRule ^database-test(?:\.php)?/?$ - [F,L,NC]
+<FilesMatch "(?i)\.(sql|bak|backup|log|ini|env|md|json|ya?ml)(\..*)?$">
+  Require all denied
+</FilesMatch>
+
+# Local development may use HTTP; public hosts must use TLS.
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?$ [NC]
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=308,L]
 
 # Hide PHP file extensions for SEO-friendly public URLs.
 RewriteCond %{REQUEST_FILENAME} !-d

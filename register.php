@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/Security.php';
 
 $RegisterError = (string)($_SESSION['RegisterError'] ?? '');
 $RegisterOldInput = $_SESSION['RegisterOldInput'] ?? [];
@@ -42,6 +42,7 @@ function EscapeValue(string $Value): string
         </div>
 
         <form class="LoginForm" id="RegisterForm" action="/api/index.php" method="post" novalidate>
+          <?= CsrfField() ?>
           <input type="hidden" name="Action" value="Register">
 
           <div class="FormRow">
@@ -58,7 +59,7 @@ function EscapeValue(string $Value): string
 
           <div class="FormGroup">
             <label for="EmailAddress">E-mailadres</label>
-            <input id="EmailAddress" name="EmailAddress" type="email" placeholder="jouw@email.nl" autocomplete="email" value="<?= EscapeValue((string)($RegisterOldInput['EmailAddress'] ?? '')) ?>" required>
+            <input id="EmailAddress" name="EmailAddress" type="email" placeholder="Je zakelijke e-mailadres" autocomplete="email" value="<?= EscapeValue((string)($RegisterOldInput['EmailAddress'] ?? '')) ?>" required>
           </div>
 
           <div class="FormGroup">

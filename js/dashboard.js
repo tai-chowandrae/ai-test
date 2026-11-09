@@ -120,6 +120,7 @@ InitializeDashboardTripControls(document);
     try {
       const RequestBody = new URLSearchParams({
         Action: "LoadTripRegistrations",
+        CsrfToken: document.querySelector('[name="CsrfToken"]').value,
         Offset: TripOverview.dataset.nextOffset || "0",
         Limit: TripOverview.dataset.tripPageSize || "20",
       });
