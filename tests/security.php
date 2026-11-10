@@ -41,7 +41,7 @@ try {
     file_put_contents($AttemptFile, json_encode(['Count' => 2, 'ExpiresAt' => time() - 1]));
     Check(ConsumeAuthAttempt($Action, 'fixture', 2) === 0, 'Expired block did not reset');
 
-    foreach (['/database/Schema.sql', '/.git/config', '/database-test', '/config/Database.php', '/storage/auth-attempts/test.json', '/tests/security.php'] as $Path) {
+    foreach (['/database/Schema.sql', '/.git/config', '/database-test', '/config/Database.php', '/storage/auth-attempts/test.json', '/tests/security.php', '/updates/private.zip', '/backup.zip', '/config.php.old'] as $Path) {
         Check(Request($Path)[0] === 403, 'Private path accessible: ' . $Path);
     }
     curl_setopt($Curl, CURLOPT_HTTPHEADER, ['Host: security-check.example']);

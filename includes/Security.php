@@ -1,4 +1,9 @@
 <?php
+// Keep SQL errors, paths and stack traces out of HTTP responses.
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+ini_set('log_errors', '1');
+
 require_once __DIR__ . '/../config/Database.php';
 
 // Only trust TLS reported by the web server, not client-supplied proxy headers.

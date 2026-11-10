@@ -4,9 +4,9 @@ Options -Indexes
 
 # Keep internal code, backups, test utilities and security state private.
 RewriteRule (^|/)\. - [F,L]
-RewriteRule ^(?:database|config|includes|storage)(?:/|$) - [F,L,NC]
+RewriteRule ^(?:database|config|includes|storage|updates|tests)(?:/|$) - [F,L,NC]
 RewriteRule ^database-test(?:\.php)?/?$ - [F,L,NC]
-<FilesMatch "(?i)\.(sql|bak|backup|log|ini|env|md|json|ya?ml)(\..*)?$">
+<FilesMatch "(?i)\.(sql|bak|backup|log|ini|env|md|json|ya?ml|zip|7z|tar|gz|old|orig|save|swp)(\..*)?$">
   Require all denied
 </FilesMatch>
 

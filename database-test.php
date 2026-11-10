@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+// Diagnostics must never disclose database metadata through an HTTP request.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 require_once __DIR__ . '/config/Database.php';
 
 header('Content-Type: text/html; charset=utf-8');

@@ -672,10 +672,12 @@ function HandleDeleteLocationRequest(): void
         $UsageStatement = $DatabaseConnection->prepare(
             'SELECT COUNT(*) AS UsageCount
              FROM tripregistrations TripRegistrations
-             WHERE StartLocationId = :StartLocationId
-                OR EndLocationId = :EndLocationId'
+             WHERE UserId = :UserId
+               AND (StartLocationId = :StartLocationId
+                    OR EndLocationId = :EndLocationId)'
         );
         $UsageStatement->execute([
+            'UserId' => (int)$_SESSION['UserId'],
             'StartLocationId' => $LocationId,
             'EndLocationId' => $LocationId,
         ]);
@@ -1037,7 +1039,7 @@ function HandleCreateTripRegistrationRequest(): void
 
         RedirectToDashboardWithMessage('Success', 'Rit is opgeslagen met ' . number_format($DistanceKilometers, 2, ',', '.') . ' km.');
     } catch (Throwable $Exception) {
-        RedirectToDashboardWithMessage('Error', 'De rit kon niet worden opgeslagen: ' . $Exception->getMessage());
+        RedirectToDashboardWithMessage('Error', 'De rit kon niet worden opgeslagen. Probeer het later opnieuw.');
     }
 }
 
@@ -1132,7 +1134,7 @@ function HandleUpdateTripRegistrationRequest(): void
 
         RedirectToTripsWithMessage('Success', 'Rit is bijgewerkt met ' . number_format($DistanceKilometers, 2, ',', '.') . ' km.');
     } catch (Throwable $Exception) {
-        RedirectToTripsWithMessage('Error', 'De rit kon niet worden bijgewerkt: ' . $Exception->getMessage());
+        RedirectToTripsWithMessage('Error', 'De rit kon niet worden bijgewerkt. Probeer het later opnieuw.');
     }
 }
 
@@ -1322,7 +1324,7 @@ function HandleUpdateAdminTripRegistrationRequest(): void
 
         RedirectToAdminWithMessage('Success', 'Rit is bijgewerkt met ' . number_format($DistanceKilometers, 2, ',', '.') . ' km.', 'Trips');
     } catch (Throwable $Exception) {
-        RedirectToAdminWithMessage('Error', 'De rit kon niet worden bijgewerkt: ' . $Exception->getMessage(), 'Trips');
+        RedirectToAdminWithMessage('Error', 'De rit kon niet worden bijgewerkt. Probeer het later opnieuw.', 'Trips');
     }
 }
 

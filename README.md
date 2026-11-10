@@ -13,6 +13,12 @@
 
 ## Security
 
+- SQL review (2026-11-10): application values use PDO parameters with native prepares. Dynamic table names come from a fixed list, IN clauses generate placeholders only, and date filters bind values. Stacked MySQL statements are disabled as an extra safeguard.
+- `config/Database.php` supports `KM_DB_HOST`, `KM_DB_NAME`, `KM_DB_USER`, and `KM_DB_PASSWORD`. Before deploying this file, configure hosting credentials using those variables or replace its local fallback values. Never use the local root account in production. Use a dedicated application account limited to SELECT, INSERT, UPDATE and DELETE on this application's database; run schema changes with a separate maintenance account.
+- Rotate the hosting database password previously present in a configuration comment. Removing it from the current file does not remove earlier Git history or existing copies. No credentials belong in upload instructions or documentation.
+- Archive downloads and the `updates` and `tests` directories are denied by Apache. The database diagnostic additionally refuses HTTP requests in PHP, and normal application responses disable detailed PHP error output. Configure display_errors=Off and display_startup_errors=Off at the hosting level too, including for parse/startup errors.
+- Run `php tests/sql-security.php` for isolated SQLite checks of registration domains, apostrophes in bound email values, malicious location IDs and cross-user location isolation. These checks do not replace MySQL/Apache integration tests or a live hosting audit.
+- The domain check does not prove ownership of a company mailbox. Registration currently has no email verification; someone who knows an unused company email can submit it. Email verification or administrator approval is needed if access must be restricted to verified employees.
 - Public hosts redirect HTTP to HTTPS. Install a valid TLS certificate before deployment; localhost, 127.0.0.1 and ::1 remain available over HTTP.
 - Session cookies use HttpOnly and SameSite=Lax, plus Secure on HTTPS. HTTPS responses enable HSTS. TLS detection uses the web server's HTTPS variable; configure trusted TLS termination at the host if using a reverse proxy.
 - Every authenticated request checks the account's current active status and admin role. Deleted or inactive accounts lose access on their next request. Already displayed pages cannot be remotely erased.
